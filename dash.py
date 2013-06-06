@@ -26,10 +26,7 @@ import urllib
 
 def get_pending_changes(client, filters):
     query = 'status:open '
-    if filters['patch']:
-        query += 'change:%s' % filters['patch']
-    else:
-        query += 'owner:%s' % filters['owner']
+    query += ' '.join('%s:%s' % (x, y) for x, y in filters.items())
     cmd = 'gerrit query "%s" --format JSON' % query
     stdin, stdout, stderr = client.exec_command(cmd)
     changes = []
@@ -93,7 +90,7 @@ def do_dashboard(client, filters, reset):
     zuul_data = get_zuul_status()
     results = find_my_changes(zuul_data, my_changes)
     if reset:
-        reset_terminal(filters['patch'] or filters['owner'])
+        reset_terminal(filters)
     for queue, changes in results.items():
         if changes:
             print "Queue: %s" % queue
@@ -102,9 +99,10 @@ def do_dashboard(client, filters, reset):
                                          change['subject'])
 
 
-def reset_terminal(owner):
+def reset_terminal(filters):
     sys.stderr.write("\x1b[2J\x1b[H")
-    print "Dashboard for %s - %s " % (owner, time.asctime())
+    target = ','.join('%s:%s' % (x, y) for x, y in filters.items())
+    print "Dashboard for %s - %s " % (target, time.asctime())
 
 
 def main():
@@ -118,8 +116,10 @@ def main():
                          help='SSH key to use for gerrit')
     optparser.add_option('-o', '--owner', default=None,
                          help='Show patches from this owner')
-    optparser.add_option('-p', '--patch', default=None,
+    optparser.add_option('-c', '--change', default=None,
                          help='Show a particular patch set')
+    optparser.add_option('-p', '--project', default=None,
+                         help='Show a particular project only')
     optparser.add_option('-Z', '--dump-zuul', help='Dump zuul data',
                          action='store_true', default=False)
     opts, args = optparser.parse_args()
@@ -134,9 +134,16 @@ def main():
     client.connect('review.openstack.org', port=29418, username=opts.user,
                    key_filename=opts.ssh_key)
 
-    filters = {'owner': opts.owner or opts.user,
-               'patch': opts.patch,
-              }
+    filters = {}
+    for filter_key in ['owner', 'change', 'project']:
+        value = getattr(opts, filter_key)
+        if value is None:
+            continue
+        filters[filter_key] = value
+
+    # Default case
+    if not filters:
+        filters = {'owner': opts.user}
 
     while True:
         try:

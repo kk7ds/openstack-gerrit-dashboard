@@ -12,12 +12,14 @@ Options:
                         SSH key to use for gerrit
   -o OWNER, --owner=OWNER
                         Show patches from this owner
-  -p PATCH, --patch=PATCH
+  -c CHANGE, --change=CHANGE
                         Show a particular patch set
+  -p PROJECT, --project=PROJECT
+                        Show a particular project only
   -Z, --dump-zuul       Dump zuul data
 
 
-Example:
+Examples:
 
 $ ./dash.py
 Queue: check
@@ -29,6 +31,17 @@ Queue: check
 Queue: gate
    9: (29288,14) Allocate networks in the background
 
-python dash.py -p 31991
+$ ./dash.py -c 31991
 Queue: check
    3: (31991,2 ) Fix obj_load() in NovaObject base class
+
+$ ./dash.py -p openstack/nova
+Queue: gate
+   8: (30511,5 ) Moving more tests to appropriate locations
+   9: (31841,4 ) Keypair API test cleanup
+Queue: check
+   1: (32031,1 ) Bump stable/grizzly next version to 2013.1.3
+   3: (29523,9 ) Make _deallocate_network async
+   5: (32040,1 ) Moves scheduler.rpcapi.prep_resize call on compute.api to conductor
+  13: (30822,6 ) Fix VMwareVCDriver to support multi-datastore
+  15: (31952,8 ) xenapi: remove auto_disk_config check during resize
