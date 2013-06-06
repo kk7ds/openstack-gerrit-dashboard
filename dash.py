@@ -14,6 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import colorama
 import json
 import optparse
 import os
@@ -44,12 +45,15 @@ def dump_zuul():
     pprint.pprint(get_zuul_status())
 
 
-def get_my_change_ids(my_changes):
-    my_change_ids = {}
-    for thing in my_changes:
+def get_change_ids(changes):
+    change_ids = {}
+    for thing in changes:
         if u'number' in thing:
-            my_change_ids[int(thing[u'number'])] = thing[u'subject']
-    return my_change_ids
+            change_ids[int(thing[u'number'])] = {
+                'subject': thing[u'subject'],
+                'owner': thing[u'owner'],
+                }
+    return change_ids
 
 
 def get_change_id(change):
@@ -62,8 +66,21 @@ def get_change_id(change):
     return change_id
 
 
-def find_my_changes(zuul_data, my_changes):
-    my_change_ids = get_my_change_ids(my_changes)
+def process_changes(head, change_ids, queue_pos, queue_results):
+    for change in head:
+        queue_pos += 1
+        change_id = get_change_id(change)
+        if change_id in change_ids:
+            queue_results.append(
+                {'pos': queue_pos,
+                 'id': change['id'],
+                 'subject': change_ids[change_id]['subject'],
+                 'owner': change_ids[change_id]['owner'],
+                 })
+    return queue_pos
+
+def find_changes_in_zuul(zuul_data, changes):
+    change_ids = get_change_ids(changes)
 
     results = {}
 
@@ -73,30 +90,32 @@ def find_my_changes(zuul_data, my_changes):
         results[queue_name] = []
         for subq in queue['change_queues']:
             for head in subq['heads']:
-                for change in head:
-                    queue_pos += 1
-                    change_id = get_change_id(change)
-                    if change_id in my_change_ids:
-                        results[queue_name].append(
-                            {'pos': queue_pos,
-                             'id': change['id'],
-                             'subject': my_change_ids[change_id],
-                             })
+                queue_pos = process_changes(head, change_ids,
+                                            queue_pos,
+                                            results[queue_name])
     return results
 
 
-def do_dashboard(client, filters, reset):
-    my_changes = get_pending_changes(client, filters)
+def green_line(line):
+    return colorama.Fore.GREEN + line + colorama.Fore.RESET
+
+
+def do_dashboard(client, user, filters, reset):
+    changes = get_pending_changes(client, filters)
     zuul_data = get_zuul_status()
-    results = find_my_changes(zuul_data, my_changes)
+    results = find_changes_in_zuul(zuul_data, changes)
     if reset:
         reset_terminal(filters)
     for queue, changes in results.items():
         if changes:
             print "Queue: %s" % queue
             for change in changes:
-                print " %3i: (%-8s) %s" % (change['pos'], change['id'],
-                                         change['subject'])
+                line = " %3i: (%-8s) %s" % (change['pos'], change['id'],
+                                            change['subject'])
+                if change['owner']['username'] == user:
+                    print green_line(line)
+                else:
+                    print line
 
 
 def reset_terminal(filters):
@@ -147,7 +166,7 @@ def main():
 
     while True:
         try:
-            do_dashboard(client, filters, opts.refresh != 0)
+            do_dashboard(client, opts.user, filters, opts.refresh != 0)
             if not opts.refresh:
                 break
             time.sleep(opts.refresh)
