@@ -11,3 +11,12 @@ Options:
   -k SSH_KEY, --ssh_key=SSH_KEY
                         SSH key to use for gerrit
   -Z, --dump-zuul       Dump zuul data
+
+
+Example:
+
+./dash.py -u danms
+Dashboard for danms - Thu Jun  6 11:08:20 2013 
+Queue: check
+  3: Add base mixin class for object lists
+  8: Fix obj_load() in NovaObject base class
