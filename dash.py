@@ -16,6 +16,7 @@
 
 import json
 import optparse
+import os
 import paramiko
 import pprint
 import sys
@@ -23,8 +24,13 @@ import time
 import urllib
 
 
-def get_pending_changes(client, owner):
-    query = 'status:open owner:%s' % owner
+def get_pending_changes(client, filters):
+    query = 'status:open '
+    if filters['patch']:
+        query += 'change:%s' % filters['patch']
+    else:
+        query += 'owner:%s' % filters['owner']
+    print query
     cmd = 'gerrit query "%s" --format JSON' % query
     stdin, stdout, stderr = client.exec_command(cmd)
     changes = []
@@ -83,17 +89,18 @@ def find_my_changes(zuul_data, my_changes):
     return results
 
 
-def do_dashboard(client, owner, reset):
-    my_changes = get_pending_changes(client, owner)
+def do_dashboard(client, filters, reset):
+    my_changes = get_pending_changes(client, filters)
     zuul_data = get_zuul_status()
     results = find_my_changes(zuul_data, my_changes)
     if reset:
-        reset_terminal(owner)
+        reset_terminal(filters['patch'] or filters['owner'])
     for queue, changes in results.items():
         if changes:
             print "Queue: %s" % queue
             for change in changes:
-                print " %3i: %s" % (change['pos'], change['subject'])
+                print " %3i: (%-8s) %s" % (change['pos'], change['id'],
+                                         change['subject'])
 
 
 def reset_terminal(owner):
@@ -102,14 +109,18 @@ def reset_terminal(owner):
 
 
 def main():
-    optparser = optparse.OptionParser()
-    optparser.add_option('-u', '--user', help='Gerrit username')
+    usage = 'Usage: %s [options] [<username or review ID>]'
+    optparser = optparse.OptionParser(usage=usage)
+    optparser.add_option('-u', '--user', help='Gerrit username',
+                         default=os.environ.get('USER'))
     optparser.add_option('-r', '--refresh', help='Refresh in seconds',
                          default=0, type=int)
     optparser.add_option('-k', '--ssh_key', default=None,
                          help='SSH key to use for gerrit')
     optparser.add_option('-o', '--owner', default=None,
                          help='Show patches from this owner')
+    optparser.add_option('-p', '--patch', default=None,
+                         help='Show a particular patch set')
     optparser.add_option('-Z', '--dump-zuul', help='Dump zuul data',
                          action='store_true', default=False)
     opts, args = optparser.parse_args()
@@ -124,13 +135,13 @@ def main():
     client.connect('review.openstack.org', port=29418, username=opts.user,
                    key_filename=opts.ssh_key)
 
+    filters = {'owner': opts.owner or opts.user,
+               'patch': opts.patch,
+              }
+
     while True:
         try:
-            if opts.owner:
-                owner = opts.owner
-            else:
-                owner = opts.user
-            do_dashboard(client, owner, opts.refresh != 0)
+            do_dashboard(client, filters, opts.refresh != 0)
             if not opts.refresh:
                 break
             time.sleep(opts.refresh)
