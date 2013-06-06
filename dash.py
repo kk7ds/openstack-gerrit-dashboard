@@ -93,7 +93,7 @@ def do_dashboard(client, owner, reset):
         if changes:
             print "Queue: %s" % queue
             for change in changes:
-                print "  %i: %s" % (change['pos'], change['subject'])
+                print " %3i: %s" % (change['pos'], change['subject'])
 
 
 def reset_terminal(owner):
