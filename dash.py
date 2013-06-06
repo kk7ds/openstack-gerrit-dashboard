@@ -118,6 +118,7 @@ def main():
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.load_system_host_keys()
     client.connect('review.openstack.org', port=29418, username=opts.user,
                    key_filename=opts.ssh_key)
 
