@@ -108,6 +108,8 @@ def main():
                          default=0, type=int)
     optparser.add_option('-k', '--ssh_key', default=None,
                          help='SSH key to use for gerrit')
+    optparser.add_option('-o', '--owner', default=None,
+                         help='Show patches from this owner')
     optparser.add_option('-Z', '--dump-zuul', help='Dump zuul data',
                          action='store_true', default=False)
     opts, args = optparser.parse_args()
@@ -124,7 +126,11 @@ def main():
 
     while True:
         try:
-            do_dashboard(client, opts.user, opts.refresh != 0)
+            if opts.owner:
+                owner = opts.owner
+            else:
+                owner = opts.user
+            do_dashboard(client, owner, opts.refresh != 0)
             if not opts.refresh:
                 break
             time.sleep(opts.refresh)
