@@ -36,6 +36,10 @@ def get_pending_changes(client, filters):
     return changes
 
 
+def dump_gerrit(client, filters):
+    pprint.pprint(get_pending_changes(client, filters))
+
+
 def get_zuul_status():
     zuul = urllib.urlopen('http://zuul.openstack.org/status.json')
     return json.loads(zuul.read())
@@ -141,11 +145,13 @@ def main():
                          help='Show a particular project only')
     optparser.add_option('-Z', '--dump-zuul', help='Dump zuul data',
                          action='store_true', default=False)
+    optparser.add_option('-G', '--dump-gerrit', help='Dump gerrit data',
+                         action='store_true', default=False)
     opts, args = optparser.parse_args()
 
     if opts.dump_zuul:
         dump_zuul()
-        sys.exit()
+        return
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -163,6 +169,10 @@ def main():
     # Default case
     if not filters:
         filters = {'owner': opts.user}
+
+    if opts.dump_gerrit:
+        dump_gerrit(client, filters)
+        return
 
     while True:
         try:
