@@ -30,7 +30,6 @@ def get_pending_changes(client, filters):
         query += 'change:%s' % filters['patch']
     else:
         query += 'owner:%s' % filters['owner']
-    print query
     cmd = 'gerrit query "%s" --format JSON' % query
     stdin, stdout, stderr = client.exec_command(cmd)
     changes = []
