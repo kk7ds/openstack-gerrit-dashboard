@@ -1,0 +1,13 @@
+This is a simple and very hacky thing to show a dashboard of commits
+that are in the various check/gate queues. Usage is:
+
+Usage: dash.py [options]
+
+Options:
+  -h, --help            show this help message and exit
+  -u USER, --user=USER  Gerrit username
+  -r REFRESH, --refresh=REFRESH
+                        Refresh in seconds
+  -k SSH_KEY, --ssh_key=SSH_KEY
+                        SSH key to use for gerrit
+  -Z, --dump-zuul       Dump zuul data
