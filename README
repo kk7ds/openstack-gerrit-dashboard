@@ -16,6 +16,9 @@ Options:
                         Show a particular patch set
   -p PROJECT, --project=PROJECT
                         Show a particular project only
+  -t TOPIC, --topic=TOPIC
+                        Show a particular topic only
+  -j, --jenkins         Show jenkins scores for patches already verified
   -Z, --dump-zuul       Dump zuul data
 
 
