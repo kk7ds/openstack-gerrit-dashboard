@@ -26,8 +26,8 @@ import urllib
 
 
 def get_pending_changes(client, filters):
-    query = '--current-patch-set status:new status:open '
-    query += ' '.join('%s:%s' % (x, y) for x, y in filters.items())
+    query = ' '.join('%s:"%s"' % (x, y) for x, y in filters.items())
+    query += ' status:open --current-patch-set'
     cmd = 'gerrit query %s --format JSON' % query
     stdin, stdout, stderr = client.exec_command(cmd)
     changes = []
@@ -146,7 +146,7 @@ def do_dashboard(client, user, filters, reset, show_jenkins):
                 else:
                     print line
     # Show info about changes not in zuul.
-    if show_jenkins:
+    if show_jenkins and change_ids_not_found:
         print "Jenkins scores:"
         changes_not_found = [x for x in changes
                 if int(x['number']) in change_ids_not_found]
@@ -181,6 +181,8 @@ def main():
                          help='Show a particular patch set')
     optparser.add_option('-p', '--project', default=None,
                          help='Show a particular project only')
+    optparser.add_option('-t', '--topic', default=None,
+                         help='Show a particular topic only')
     optparser.add_option('-j', '--jenkins', default=False,
                          action='store_true',
                          help='Show jenkins scores for patches already '
@@ -202,7 +204,7 @@ def main():
                    key_filename=opts.ssh_key)
 
     filters = {}
-    for filter_key in ['owner', 'change', 'project']:
+    for filter_key in ['owner', 'change', 'project', 'topic']:
         value = getattr(opts, filter_key)
         if value is None:
             continue
