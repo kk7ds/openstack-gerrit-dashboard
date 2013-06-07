@@ -26,13 +26,16 @@ import urllib
 
 
 def get_pending_changes(client, filters):
-    query = 'status:open '
+    query = '--current-patch-set status:new status:open '
     query += ' '.join('%s:%s' % (x, y) for x, y in filters.items())
-    cmd = 'gerrit query "%s" --format JSON' % query
+    cmd = 'gerrit query %s --format JSON' % query
     stdin, stdout, stderr = client.exec_command(cmd)
     changes = []
     for line in stdout:
-        changes.append(json.loads(line))
+        change = json.loads(line)
+        if 'number' not in change:
+            continue
+        changes.append(change)
     return changes
 
 
@@ -52,11 +55,10 @@ def dump_zuul():
 def get_change_ids(changes):
     change_ids = {}
     for thing in changes:
-        if u'number' in thing:
-            change_ids[int(thing[u'number'])] = {
-                'subject': thing[u'subject'],
-                'owner': thing[u'owner'],
-                }
+         change_ids[int(thing[u'number'])] = {
+             'subject': thing[u'subject'],
+             'owner': thing[u'owner'],
+             }
     return change_ids
 
 
@@ -83,6 +85,27 @@ def process_changes(head, change_ids, queue_pos, queue_results):
                  })
     return queue_pos
 
+
+def get_jenkins_info(changes):
+    jenkins_info = []
+    for change in changes:
+        patch_set = change['currentPatchSet']
+        change_id = '%s,%s' % (change['number'], patch_set['number'])
+        for approval in patch_set.get('approvals', []):
+            if (approval['type'] != 'VRIF' or
+                approval['by']['username'] != 'jenkins'):
+                continue
+            score = approval['value']
+            break
+        else:
+            score = '0'
+        jenkins_info.append({'id': change_id,
+                             'score': score,
+                             'owner': change['owner'],
+                             'subject': change['subject']})
+    return jenkins_info
+
+
 def find_changes_in_zuul(zuul_data, changes):
     change_ids = get_change_ids(changes)
 
@@ -104,22 +127,37 @@ def green_line(line):
     return colorama.Fore.GREEN + line + colorama.Fore.RESET
 
 
-def do_dashboard(client, user, filters, reset):
+def do_dashboard(client, user, filters, reset, show_jenkins):
     changes = get_pending_changes(client, filters)
     zuul_data = get_zuul_status()
     results = find_changes_in_zuul(zuul_data, changes)
     if reset:
         reset_terminal(filters)
-    for queue, changes in results.items():
-        if changes:
+    change_ids_not_found = get_change_ids(changes).keys()
+    for queue, zuul_info in results.items():
+        if zuul_info:
             print "Queue: %s" % queue
-            for change in changes:
+            for change in zuul_info:
+                change_ids_not_found.remove(get_change_id(change))
                 line = " %3i: (%-8s) %s" % (change['pos'], change['id'],
                                             change['subject'])
                 if change['owner']['username'] == user:
                     print green_line(line)
                 else:
                     print line
+    # Show info about changes not in zuul.
+    if show_jenkins:
+        print "Jenkins scores:"
+        changes_not_found = [x for x in changes
+                if int(x['number']) in change_ids_not_found]
+        jenkins_info = get_jenkins_info(changes_not_found)
+        for info in jenkins_info:
+            line = " %2s: (%-8s) %s" % (info['score'], info['id'],
+                                        info['subject'])
+            if info['owner']['username'] == user:
+                print green_line(line)
+            else:
+                print line
 
 
 def reset_terminal(filters):
@@ -143,6 +181,10 @@ def main():
                          help='Show a particular patch set')
     optparser.add_option('-p', '--project', default=None,
                          help='Show a particular project only')
+    optparser.add_option('-j', '--jenkins', default=False,
+                         action='store_true',
+                         help='Show jenkins scores for patches already '
+                              'verified')
     optparser.add_option('-Z', '--dump-zuul', help='Dump zuul data',
                          action='store_true', default=False)
     optparser.add_option('-G', '--dump-gerrit', help='Dump gerrit data',
@@ -176,7 +218,8 @@ def main():
 
     while True:
         try:
-            do_dashboard(client, opts.user, filters, opts.refresh != 0)
+            do_dashboard(client, opts.user, filters, opts.refresh != 0,
+                         opts.jenkins)
             if not opts.refresh:
                 break
             time.sleep(opts.refresh)
