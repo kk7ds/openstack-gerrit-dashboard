@@ -138,7 +138,9 @@ def do_dashboard(client, user, filters, reset, show_jenkins):
         if zuul_info:
             print "Queue: %s" % queue
             for change in zuul_info:
-                change_ids_not_found.remove(get_change_id(change))
+                change_id = get_change_id(change)
+                if change_id in change_ids_not_found:
+                    change_ids_not_found.remove(change_id)
                 line = " %3i: (%-8s) %s" % (change['pos'], change['id'],
                                             change['subject'])
                 if change['owner']['username'] == user:
