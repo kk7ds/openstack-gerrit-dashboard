@@ -82,6 +82,7 @@ def process_changes(head, change_ids, queue_pos, queue_results):
                  'id': change['id'],
                  'subject': change_ids[change_id]['subject'],
                  'owner': change_ids[change_id]['owner'],
+                 'enqueue_time': change['enqueue_time'],
                  })
     return queue_pos
 
@@ -127,6 +128,18 @@ def green_line(line):
     return colorama.Fore.GREEN + line + colorama.Fore.RESET
 
 
+def calculate_time_in_queue(change):
+    enqueue_timestamp = int(change['enqueue_time']) / 1000
+    secs = time.time() - enqueue_timestamp
+    if secs < 60:
+        return "%is" % secs
+    elif secs < 3600:
+        return "%im" % (secs / 60)
+    else:
+        return "%ih%im" % ((secs / 3600),
+                           (secs % 3600) / 60)
+
+
 def do_dashboard(client, user, filters, reset, show_jenkins):
     changes = get_pending_changes(client, filters)
     zuul_data = get_zuul_status()
@@ -141,8 +154,10 @@ def do_dashboard(client, user, filters, reset, show_jenkins):
                 change_id = get_change_id(change)
                 if change_id in change_ids_not_found:
                     change_ids_not_found.remove(change_id)
-                line = " %3i: (%-8s) %s" % (change['pos'], change['id'],
-                                            change['subject'])
+                time_in_q = calculate_time_in_queue(change)
+                line = " %3i: (%-8s) %s (%s)" % (change['pos'], change['id'],
+                                                 change['subject'],
+                                                 time_in_q)
                 if change['owner']['username'] == user:
                     print green_line(line)
                 else:
