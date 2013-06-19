@@ -130,6 +130,10 @@ def green_line(line):
     return colorama.Fore.GREEN + line + colorama.Fore.RESET
 
 
+def bright_line(line):
+    return colorama.Style.BRIGHT + line + colorama.Style.RESET_ALL
+
+
 def calculate_time_in_queue(change):
     enqueue_timestamp = int(change['enqueue_time']) / 1000
     secs = time.time() - enqueue_timestamp
@@ -151,7 +155,7 @@ def do_dashboard(client, user, filters, reset, show_jenkins):
     change_ids_not_found = get_change_ids(changes).keys()
     for queue, zuul_info in results.items():
         if zuul_info:
-            print "Queue: %s (%i)" % (queue, queue_stats[queue])
+            print bright_line("Queue: %s (%i)" % (queue, queue_stats[queue]))
             for change in zuul_info:
                 change_id = get_change_id(change)
                 if change_id in change_ids_not_found:
