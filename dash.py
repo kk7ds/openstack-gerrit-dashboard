@@ -111,6 +111,7 @@ def find_changes_in_zuul(zuul_data, changes):
     change_ids = get_change_ids(changes)
 
     results = {}
+    queue_stats = {}
 
     for queue in zuul_data['pipelines']:
         queue_name = queue['name']
@@ -121,7 +122,8 @@ def find_changes_in_zuul(zuul_data, changes):
                 queue_pos = process_changes(head, change_ids,
                                             queue_pos,
                                             results[queue_name])
-    return results
+        queue_stats[queue_name] = queue_pos
+    return results, queue_stats
 
 
 def green_line(line):
@@ -143,13 +145,13 @@ def calculate_time_in_queue(change):
 def do_dashboard(client, user, filters, reset, show_jenkins):
     changes = get_pending_changes(client, filters)
     zuul_data = get_zuul_status()
-    results = find_changes_in_zuul(zuul_data, changes)
+    results, queue_stats = find_changes_in_zuul(zuul_data, changes)
     if reset:
         reset_terminal(filters)
     change_ids_not_found = get_change_ids(changes).keys()
     for queue, zuul_info in results.items():
         if zuul_info:
-            print "Queue: %s" % queue
+            print "Queue: %s (%i)" % (queue, queue_stats[queue])
             for change in zuul_info:
                 change_id = get_change_id(change)
                 if change_id in change_ids_not_found:
