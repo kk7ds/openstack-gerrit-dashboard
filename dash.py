@@ -161,9 +161,13 @@ def do_dashboard(client, user, filters, reset, show_jenkins):
                 if change_id in change_ids_not_found:
                     change_ids_not_found.remove(change_id)
                 time_in_q = calculate_time_in_queue(change)
-                line = " %3i: (%-8s) %s (%s)" % (change['pos'], change['id'],
-                                                 change['subject'],
-                                                 time_in_q)
+                line = '(%-8s) %s (%s)' % (change['id'],
+                                           change['subject'],
+                                           time_in_q)
+                if queue == 'gate':
+                    line = ('%3i: ' % change['pos']) + line
+                else:
+                    line = '     ' + line
                 if change['owner']['username'] == user:
                     print green_line(line)
                 else:
