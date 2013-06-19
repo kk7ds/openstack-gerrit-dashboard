@@ -72,6 +72,19 @@ def get_change_id(change):
     return change_id
 
 
+def get_job_status(change):
+    total = 0
+    complete = 0
+    okay = True
+    for job in change['jobs']:
+        total += 1
+        if job['result']:
+            complete += 1
+            if (job['result'] != u'SUCCESS' and job['voting']):
+                okay = False
+    return (complete * 100) / total, okay
+
+
 def process_changes(head, change_ids, queue_pos, queue_results):
     for change in head:
         queue_pos += 1
@@ -83,6 +96,7 @@ def process_changes(head, change_ids, queue_pos, queue_results):
                  'subject': change_ids[change_id]['subject'],
                  'owner': change_ids[change_id]['owner'],
                  'enqueue_time': change['enqueue_time'],
+                 'status': get_job_status(change),
                  })
     return queue_pos
 
@@ -130,6 +144,10 @@ def green_line(line):
     return colorama.Fore.GREEN + line + colorama.Fore.RESET
 
 
+def red_line(line):
+    return colorama.Fore.RED + line + colorama.Fore.RESET
+
+
 def bright_line(line):
     return colorama.Style.BRIGHT + line + colorama.Style.RESET_ALL
 
@@ -161,15 +179,20 @@ def do_dashboard(client, user, filters, reset, show_jenkins):
                 if change_id in change_ids_not_found:
                     change_ids_not_found.remove(change_id)
                 time_in_q = calculate_time_in_queue(change)
-                line = '(%-8s) %s (%s)' % (change['id'],
-                                           change['subject'],
-                                           time_in_q)
+                status, okay = change['status']
+                line = '(%-8s) %s (%s/%02i%%)' % (change['id'],
+                                                  change['subject'],
+                                                  time_in_q,
+                                                  status)
                 if queue == 'gate':
                     line = ('%3i: ' % change['pos']) + line
                 else:
                     line = '     ' + line
                 if change['owner']['username'] == user:
-                    print green_line(line)
+                    if okay:
+                        print green_line(line)
+                    else:
+                        print red_line(line)
                 else:
                     print line
     # Show info about changes not in zuul.
