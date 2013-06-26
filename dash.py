@@ -236,6 +236,9 @@ def main():
     optparser.add_option('-w', '--watched', default=False,
                          action='store_true',
                          help='Show changes for all watched projects')
+    optparser.add_option('-s', '--starred', default=False,
+                         action='store_true',
+                         help='Show changes for all starred commits')
     optparser.add_option('-j', '--jenkins', default=False,
                          action='store_true',
                          help='Show jenkins scores for patches already '
@@ -265,6 +268,9 @@ def main():
 
     if opts.watched:
         filters['is'] = 'watched'
+
+    if opts.starred:
+        filters['is'] = 'starred'
 
     # Default case
     if not filters:
