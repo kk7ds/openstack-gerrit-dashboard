@@ -40,8 +40,8 @@ def get_pending_changes(client, filters, operator):
     return changes
 
 
-def dump_gerrit(client, filters):
-    pprint.pprint(get_pending_changes(client, filters))
+def dump_gerrit(client, filters, operator):
+    pprint.pprint(get_pending_changes(client, filters, operator))
 
 
 def get_zuul_status():
@@ -284,7 +284,7 @@ def main():
         filters = {'owner': opts.user}
 
     if opts.dump_gerrit:
-        dump_gerrit(client, filters)
+        dump_gerrit(client, filters, opts.operator)
         return
 
     while True:
