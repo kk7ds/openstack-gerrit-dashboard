@@ -23,6 +23,7 @@ import pprint
 import sys
 import time
 import urllib
+import getpass
 
 def make_filter(key, value, operator):
     if isinstance(value, list):
@@ -250,6 +251,9 @@ def main():
                          default=0, type=int)
     optparser.add_option('-k', '--ssh_key', default=None,
                          help='SSH key to use for gerrit')
+    optparser.add_option('-P', '--ssh_key_passphrase', default=False,
+                         action='store_true',
+                         help='Will ask for SSH key passphrase')
     optparser.add_option('-o', '--owner', default=None,
                          help='Show patches from this owner')
     optparser.add_option('-c', '--change', default=None,
@@ -280,11 +284,14 @@ def main():
         dump_zuul()
         return
 
+    if opts.ssh_key_passphrase:
+        ssh_key_pw = getpass.getpass()
+
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.load_system_host_keys()
     client.connect('review.openstack.org', port=29418, username=opts.user,
-                   key_filename=opts.ssh_key)
+                   key_filename=opts.ssh_key, password=ssh_key_pw)
 
     filters = {}
     for filter_key in ['owner', 'change', 'topic']:
