@@ -25,9 +25,10 @@ import time
 import urllib
 
 
-def get_pending_changes(client, filters):
-    query = ' '.join('%s:"%s"' % (x, y) for x, y in filters.items())
-    query += ' status:open --current-patch-set'
+def get_pending_changes(client, filters, operator):
+    query_items = ['%s:%s' % (x, y) for x, y in filters.items()]
+    query = (' %s ' % operator).join(query_items)
+    query = '(%s) AND status:open --current-patch-set' % query
     cmd = 'gerrit query %s --format JSON' % query
     stdin, stdout, stderr = client.exec_command(cmd)
     changes = []
@@ -164,8 +165,8 @@ def calculate_time_in_queue(change):
                            (secs % 3600) / 60)
 
 
-def do_dashboard(client, user, filters, reset, show_jenkins):
-    changes = get_pending_changes(client, filters)
+def do_dashboard(client, user, filters, reset, show_jenkins, operator):
+    changes = get_pending_changes(client, filters, operator)
     zuul_data = get_zuul_status()
     results, queue_stats = find_changes_in_zuul(zuul_data, changes)
     if reset:
@@ -239,6 +240,8 @@ def main():
     optparser.add_option('-s', '--starred', default=False,
                          action='store_true',
                          help='Show changes for all starred commits')
+    optparser.add_option('-O', '--operator', default='AND',
+                         help='Join query elements with this operator')
     optparser.add_option('-j', '--jenkins', default=False,
                          action='store_true',
                          help='Show jenkins scores for patches already '
@@ -283,7 +286,7 @@ def main():
     while True:
         try:
             do_dashboard(client, opts.user, filters, opts.refresh != 0,
-                         opts.jenkins)
+                         opts.jenkins, opts.operator)
             if not opts.refresh:
                 break
             time.sleep(opts.refresh)
