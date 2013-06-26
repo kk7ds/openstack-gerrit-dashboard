@@ -32,10 +32,23 @@ def make_filter(key, value, operator):
         return '%s:%s' % (key, value)
 
 
-def get_pending_changes(client, filters, operator):
-    query_items = [make_filter(x, y, operator) for x, y in filters.items()]
-    query = (' %s ' % operator).join(query_items)
-    query = '(%s) AND status:open --current-patch-set' % query
+def get_pending_changes(client, filters, operator, projects):
+    if filters:
+        query_items = [make_filter(x, y, operator) for x, y in filters.items()]
+        filters_query = '(' + (' %s ' % operator).join(query_items) + ')'
+    else:
+        filters_query = ''
+
+    if projects:
+        projects = ['project:%s' % p for p in projects]
+        project_query = '(' + ' OR '.join(projects) + ')'
+    else:
+        project_query = ''
+
+    query = filters_query + (' AND ' if filters_query else '')
+    query += project_query
+    query = ('%s AND status:open --current-patch-set' % query)
+
     cmd = 'gerrit query %s --format JSON' % query
     stdin, stdout, stderr = client.exec_command(cmd)
     changes = []
@@ -47,8 +60,8 @@ def get_pending_changes(client, filters, operator):
     return changes
 
 
-def dump_gerrit(client, filters, operator):
-    pprint.pprint(get_pending_changes(client, filters, operator))
+def dump_gerrit(client, filters, operator, projects):
+    pprint.pprint(get_pending_changes(client, filters, operator, projects))
 
 
 def get_zuul_status():
@@ -172,12 +185,12 @@ def calculate_time_in_queue(change):
                            (secs % 3600) / 60)
 
 
-def do_dashboard(client, user, filters, reset, show_jenkins, operator):
-    changes = get_pending_changes(client, filters, operator)
+def do_dashboard(client, user, filters, reset, show_jenkins, operator, projects):
+    changes = get_pending_changes(client, filters, operator, projects)
     zuul_data = get_zuul_status()
     results, queue_stats = find_changes_in_zuul(zuul_data, changes)
     if reset:
-        reset_terminal(filters, operator)
+        reset_terminal(filters, operator, projects)
     change_ids_not_found = get_change_ids(changes).keys()
     for queue, zuul_info in results.items():
         if zuul_info:
@@ -218,14 +231,14 @@ def do_dashboard(client, user, filters, reset, show_jenkins, operator):
                 print line
 
 
-def reset_terminal(filters, operator):
+def reset_terminal(filters, operator, projects):
     if operator == 'OR':
         delim = '+'
     else:
         delim = ','
     sys.stderr.write("\x1b[2J\x1b[H")
     target = delim.join('%s:%s' % (x, y) for x, y in filters.items())
-    print "Dashboard for %s - %s " % (target, time.asctime())
+    print "Dashboard for %s %s - %s " % (target, projects, time.asctime())
 
 
 def main():
@@ -241,8 +254,8 @@ def main():
                          help='Show patches from this owner')
     optparser.add_option('-c', '--change', default=None,
                          help='Show a particular patch set')
-    optparser.add_option('-p', '--project', default=None,
-                         help='Show a particular project only')
+    optparser.add_option('-p', '--projects', default='',
+                         help='Comma separated list of projects')
     optparser.add_option('-t', '--topic', default=None,
                          help='Show a particular topic only')
     optparser.add_option('-w', '--watched', default=False,
@@ -274,11 +287,13 @@ def main():
                    key_filename=opts.ssh_key)
 
     filters = {}
-    for filter_key in ['owner', 'change', 'project', 'topic']:
+    for filter_key in ['owner', 'change', 'topic']:
         value = getattr(opts, filter_key)
         if value is None:
             continue
         filters[filter_key] = value
+
+    projects = opts.projects.split(',')
 
     filters['is'] = []
     if opts.watched:
@@ -287,17 +302,17 @@ def main():
         filters['is'].append('starred')
 
     # Default case
-    if not filters:
+    if not filters and not projects:
         filters = {'owner': opts.user}
 
     if opts.dump_gerrit:
-        dump_gerrit(client, filters, opts.operator)
+        dump_gerrit(client, filters, opts.operator, projects)
         return
 
     while True:
         try:
             do_dashboard(client, opts.user, filters, opts.refresh != 0,
-                         opts.jenkins, opts.operator)
+                         opts.jenkins, opts.operator, projects)
             if not opts.refresh:
                 break
             time.sleep(opts.refresh)
