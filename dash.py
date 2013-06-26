@@ -170,7 +170,7 @@ def do_dashboard(client, user, filters, reset, show_jenkins, operator):
     zuul_data = get_zuul_status()
     results, queue_stats = find_changes_in_zuul(zuul_data, changes)
     if reset:
-        reset_terminal(filters)
+        reset_terminal(filters, operator)
     change_ids_not_found = get_change_ids(changes).keys()
     for queue, zuul_info in results.items():
         if zuul_info:
@@ -211,9 +211,13 @@ def do_dashboard(client, user, filters, reset, show_jenkins, operator):
                 print line
 
 
-def reset_terminal(filters):
+def reset_terminal(filters, operator):
+    if operator == 'OR':
+        delim = '+'
+    else:
+        delim = ','
     sys.stderr.write("\x1b[2J\x1b[H")
-    target = ','.join('%s:%s' % (x, y) for x, y in filters.items())
+    target = delim.join('%s:%s' % (x, y) for x, y in filters.items())
     print "Dashboard for %s - %s " % (target, time.asctime())
 
 
