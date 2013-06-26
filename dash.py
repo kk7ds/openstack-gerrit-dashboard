@@ -233,6 +233,9 @@ def main():
                          help='Show a particular project only')
     optparser.add_option('-t', '--topic', default=None,
                          help='Show a particular topic only')
+    optparser.add_option('-w', '--watched', default=False,
+                         action='store_true',
+                         help='Show changes for all watched projects')
     optparser.add_option('-j', '--jenkins', default=False,
                          action='store_true',
                          help='Show jenkins scores for patches already '
@@ -259,6 +262,9 @@ def main():
         if value is None:
             continue
         filters[filter_key] = value
+
+    if opts.watched:
+        filters['is'] = 'watched'
 
     # Default case
     if not filters:
