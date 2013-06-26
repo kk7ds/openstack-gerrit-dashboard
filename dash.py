@@ -284,14 +284,19 @@ def main():
         dump_zuul()
         return
 
+    connect_args = {
+        'port': 29418,
+        'username': opts.user,
+        'key_filename': opts.ssh_key
+    }
     if opts.ssh_key_passphrase:
         ssh_key_pw = getpass.getpass()
+        connect_args['password'] = ssh_key_pw
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.load_system_host_keys()
-    client.connect('review.openstack.org', port=29418, username=opts.user,
-                   key_filename=opts.ssh_key, password=ssh_key_pw)
+    client.connect('review.openstack.org', **connect_args)
 
     filters = {}
     for filter_key in ['owner', 'change', 'topic']:
