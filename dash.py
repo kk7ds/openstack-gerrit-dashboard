@@ -295,7 +295,8 @@ def main():
 
     projects = opts.projects.split(',')
 
-    filters['is'] = []
+    if opts.watched or opts.starred:
+        filters['is'] = []
     if opts.watched:
         filters['is'].append('watched')
     if opts.starred:
