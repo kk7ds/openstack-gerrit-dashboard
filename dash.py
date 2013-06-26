@@ -45,7 +45,7 @@ def get_pending_changes(client, filters, operator, projects):
     else:
         project_query = ''
 
-    query = filters_query + (' AND ' if filters_query else '')
+    query = filters_query + ((' %s ' % operator) if filters_query else '')
     query += project_query
     query = ('%s AND status:open --current-patch-set' % query)
 
