@@ -24,9 +24,16 @@ import sys
 import time
 import urllib
 
+def make_filter(key, value, operator):
+    if isinstance(value, list):
+        return (' %s ' % operator).join(['%s:%s' % (key, _value)
+                                         for _value in value])
+    else:
+        return '%s:%s' % (key, value)
+
 
 def get_pending_changes(client, filters, operator):
-    query_items = ['%s:%s' % (x, y) for x, y in filters.items()]
+    query_items = [make_filter(x, y, operator) for x, y in filters.items()]
     query = (' %s ' % operator).join(query_items)
     query = '(%s) AND status:open --current-patch-set' % query
     cmd = 'gerrit query %s --format JSON' % query
@@ -273,11 +280,11 @@ def main():
             continue
         filters[filter_key] = value
 
+    filters['is'] = []
     if opts.watched:
-        filters['is'] = 'watched'
-
+        filters['is'].append('watched')
     if opts.starred:
-        filters['is'] = 'starred'
+        filters['is'].append('starred')
 
     # Default case
     if not filters:
