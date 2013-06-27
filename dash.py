@@ -251,9 +251,6 @@ def main():
                          default=0, type=int)
     optparser.add_option('-k', '--ssh_key', default=None,
                          help='SSH key to use for gerrit')
-    optparser.add_option('-P', '--ssh_key_passphrase', default=False,
-                         action='store_true',
-                         help='Will ask for SSH key passphrase')
     optparser.add_option('-o', '--owner', default=None,
                          help='Show patches from this owner')
     optparser.add_option('-c', '--change', default=None,
@@ -289,14 +286,18 @@ def main():
         'username': opts.user,
         'key_filename': opts.ssh_key
     }
-    if opts.ssh_key_passphrase:
-        ssh_key_pw = getpass.getpass()
-        connect_args['password'] = ssh_key_pw
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.load_system_host_keys()
-    client.connect('review.openstack.org', **connect_args)
+
+    try:
+        client.connect('review.openstack.org', **connect_args)
+    except paramiko.PasswordRequiredException:
+        print "SSH key is encrypted. Asking for the passphrase..."
+        ssh_key_pw = getpass.getpass()
+        connect_args['password'] = ssh_key_pw
+        client.connect('review.openstack.org', **connect_args)
 
     filters = {}
     for filter_key in ['owner', 'change', 'topic']:
