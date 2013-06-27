@@ -34,21 +34,19 @@ def make_filter(key, value, operator):
 
 
 def get_pending_changes(client, filters, operator, projects):
+    query_parts = []
     if filters:
         query_items = [make_filter(x, y, operator) for x, y in filters.items()]
         filters_query = '(' + (' %s ' % operator).join(query_items) + ')'
-    else:
-        filters_query = ''
+        query_parts.append(filters_query)
 
     if projects:
         projects = ['project:%s' % p for p in projects]
         project_query = '(' + ' OR '.join(projects) + ')'
-    else:
-        project_query = ''
+        query_parts.append(project_query)
 
-    query = filters_query + ((' %s ' % operator) if filters_query else '')
-    query += project_query
-    query = ('%s AND status:open --current-patch-set' % query)
+    query_parts.append('status:open --current-patch-set')
+    query = (' %s ' % operator).join(query_parts)
 
     cmd = 'gerrit query %s --format JSON' % query
     stdin, stdout, stderr = client.exec_command(cmd)
@@ -305,7 +303,7 @@ def main():
             continue
         filters[filter_key] = value
 
-    projects = opts.projects.split(',')
+    projects = opts.projects.split(',') if opts.projects else []
 
     if opts.watched or opts.starred:
         filters['is'] = []
