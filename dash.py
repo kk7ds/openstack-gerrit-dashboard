@@ -45,8 +45,10 @@ def get_pending_changes(client, filters, operator, projects):
         project_query = '(' + ' OR '.join(projects) + ')'
         query_parts.append(project_query)
 
-    query_parts.append('status:open --current-patch-set')
-    query = (' %s ' % operator).join(query_parts)
+    query = '(%s)' % (' %s ' % operator).join(query_parts)
+    if query.strip:
+        query += ' AND '
+    query += 'status:open --current-patch-set'
 
     cmd = 'gerrit query %s --format JSON' % query
     stdin, stdout, stderr = client.exec_command(cmd)
