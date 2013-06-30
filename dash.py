@@ -20,6 +20,7 @@ import optparse
 import os
 import paramiko
 import pprint
+import re
 import sys
 import time
 import urllib
@@ -174,6 +175,10 @@ def bright_line(line):
     return colorama.Style.BRIGHT + line + colorama.Style.RESET_ALL
 
 
+def red_background_line(line):
+    return colorama.Back.RED + line + colorama.Back.RESET
+
+
 def calculate_time_in_queue(change):
     enqueue_timestamp = int(change['enqueue_time']) / 1000
     secs = time.time() - enqueue_timestamp
@@ -192,6 +197,9 @@ def do_dashboard(client, user, filters, reset, show_jenkins, operator, projects)
     results, queue_stats = find_changes_in_zuul(zuul_data, changes)
     if reset:
         reset_terminal(filters, operator, projects)
+    if u'message' in zuul_data:
+        msg = re.sub('<[^>]+>', '', zuul_data['message'])
+        print red_background_line('Zuul: %s' % msg)
     change_ids_not_found = get_change_ids(changes).keys()
     for queue, zuul_info in results.items():
         if zuul_info:
