@@ -190,11 +190,24 @@ def calculate_time_in_queue(change):
         return "%ih%im" % ((secs / 3600),
                            (secs % 3600) / 60)
 
+def error(msg):
+    _reset_terminal()
+    print red_background_line(msg)
+
 
 def do_dashboard(client, user, filters, reset, show_jenkins, operator, projects):
-    changes = get_pending_changes(client, filters, operator, projects)
-    zuul_data = get_zuul_status()
-    results, queue_stats = find_changes_in_zuul(zuul_data, changes)
+    try:
+        changes = get_pending_changes(client, filters, operator, projects)
+    except:
+        error('Failed to get changes from Gerrit')
+        return
+    try:
+        zuul_data = get_zuul_status()
+        results, queue_stats = find_changes_in_zuul(zuul_data, changes)
+    except:
+        error('Failed to get data from Zuul')
+        return
+
     if reset:
         reset_terminal(filters, operator, projects)
     if u'message' in zuul_data:
@@ -239,13 +252,16 @@ def do_dashboard(client, user, filters, reset, show_jenkins, operator, projects)
             else:
                 print line
 
+def _reset_terminal():
+    sys.stderr.write("\x1b[2J\x1b[H")
+
 
 def reset_terminal(filters, operator, projects):
     if operator == 'OR':
         delim = '+'
     else:
         delim = ','
-    sys.stderr.write("\x1b[2J\x1b[H")
+    _reset_terminal()
     target = delim.join('%s:%s' % (x, y) for x, y in filters.items())
     print "Dashboard for %s %s - %s " % (target, projects, time.asctime())
 
