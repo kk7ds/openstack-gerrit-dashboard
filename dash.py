@@ -216,7 +216,8 @@ def do_dashboard(client, user, filters, reset, show_jenkins, operator, projects)
     change_ids_not_found = get_change_ids(changes).keys()
     for queue, zuul_info in results.items():
         if zuul_info:
-            print bright_line("Queue: %s (%i)" % (queue, queue_stats[queue]))
+            print bright_line("Queue: %s (%i/%i)" % (queue, len(zuul_info),
+                                                     queue_stats[queue]))
             for change in zuul_info:
                 change_id = get_change_id(change)
                 if change_id in change_ids_not_found:
