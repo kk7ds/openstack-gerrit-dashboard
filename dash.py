@@ -26,6 +26,7 @@ import time
 import urllib
 import getpass
 
+
 def make_filter(key, value, operator):
     if isinstance(value, list):
         return (' %s ' % operator).join(['%s:%s' % (key, _value)
@@ -78,10 +79,10 @@ def dump_zuul():
 def get_change_ids(changes):
     change_ids = {}
     for thing in changes:
-         change_ids[int(thing[u'number'])] = {
-             'subject': thing[u'subject'],
-             'owner': thing[u'owner'],
-             }
+        change_ids[int(thing[u'number'])] = {
+            'subject': thing[u'subject'],
+            'owner': thing[u'owner'],
+        }
     return change_ids
 
 
@@ -131,7 +132,7 @@ def get_jenkins_info(changes):
         change_id = '%s,%s' % (change['number'], patch_set['number'])
         for approval in patch_set.get('approvals', []):
             if (approval['type'] != 'VRIF' or
-                approval['by']['username'] != 'jenkins'):
+                    approval['by']['username'] != 'jenkins'):
                 continue
             score = approval['value']
             break
@@ -190,12 +191,14 @@ def calculate_time_in_queue(change):
         return "%ih%im" % ((secs / 3600),
                            (secs % 3600) / 60)
 
+
 def error(msg):
     _reset_terminal()
     print red_background_line(msg)
 
 
-def do_dashboard(client, user, filters, reset, show_jenkins, operator, projects):
+def do_dashboard(client, user, filters, reset, show_jenkins, operator,
+                 projects):
     try:
         changes = get_pending_changes(client, filters, operator, projects)
     except paramiko.ssh_exception.SSHException:
@@ -245,7 +248,7 @@ def do_dashboard(client, user, filters, reset, show_jenkins, operator, projects)
     if show_jenkins and change_ids_not_found:
         print "Jenkins scores:"
         changes_not_found = [x for x in changes
-                if int(x['number']) in change_ids_not_found]
+                             if int(x['number']) in change_ids_not_found]
         jenkins_info = get_jenkins_info(changes_not_found)
         for info in jenkins_info:
             line = " %2s: (%-8s) %s" % (info['score'], info['id'],
@@ -254,6 +257,7 @@ def do_dashboard(client, user, filters, reset, show_jenkins, operator, projects)
                 print green_line(line)
             else:
                 print line
+
 
 def _reset_terminal():
     sys.stderr.write("\x1b[2J\x1b[H")
