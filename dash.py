@@ -296,6 +296,7 @@ def connect_client(opts):
         client = None
     return client
 
+
 def main():
     usage = 'Usage: %s [options] [<username or review ID>]'
     optparser = optparse.OptionParser(usage=usage)
