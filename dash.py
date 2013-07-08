@@ -198,14 +198,16 @@ def error(msg):
 def do_dashboard(client, user, filters, reset, show_jenkins, operator, projects):
     try:
         changes = get_pending_changes(client, filters, operator, projects)
-    except:
-        error('Failed to get changes from Gerrit')
+    except paramiko.ssh_exception.SSHException:
+        raise
+    except Exception as e:
+        error('Failed to get changes from Gerrit: %s' % e)
         return
     try:
         zuul_data = get_zuul_status()
         results, queue_stats = find_changes_in_zuul(zuul_data, changes)
-    except:
-        error('Failed to get data from Zuul')
+    except Exception as e:
+        error('Failed to get data from Zuul: %s' % e)
         return
 
     if reset:
@@ -267,6 +269,29 @@ def reset_terminal(filters, operator, projects):
     print "Dashboard for %s %s - %s " % (target, projects, time.asctime())
 
 
+def connect_client(opts):
+    connect_args = {
+        'port': 29418,
+        'username': opts.user,
+        'key_filename': opts.ssh_key
+    }
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.load_system_host_keys()
+    try:
+        client.connect('review.openstack.org', **connect_args)
+    except paramiko.PasswordRequiredException:
+        print "SSH key is encrypted. Asking for the passphrase..."
+        ssh_key_pw = getpass.getpass()
+        connect_args['password'] = ssh_key_pw
+        try:
+            client.connect('review.openstack.org', **connect_args)
+        except:
+            client = None
+    except:
+        client = None
+    return client
+
 def main():
     usage = 'Usage: %s [options] [<username or review ID>]'
     optparser = optparse.OptionParser(usage=usage)
@@ -306,23 +331,7 @@ def main():
         dump_zuul()
         return
 
-    connect_args = {
-        'port': 29418,
-        'username': opts.user,
-        'key_filename': opts.ssh_key
-    }
-
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.load_system_host_keys()
-
-    try:
-        client.connect('review.openstack.org', **connect_args)
-    except paramiko.PasswordRequiredException:
-        print "SSH key is encrypted. Asking for the passphrase..."
-        ssh_key_pw = getpass.getpass()
-        connect_args['password'] = ssh_key_pw
-        client.connect('review.openstack.org', **connect_args)
+    client = connect_client(opts)
 
     filters = {}
     for filter_key in ['owner', 'change', 'topic']:
@@ -350,8 +359,12 @@ def main():
 
     while True:
         try:
-            do_dashboard(client, opts.user, filters, opts.refresh != 0,
-                         opts.jenkins, opts.operator, projects)
+            try:
+                do_dashboard(client, opts.user, filters, opts.refresh != 0,
+                             opts.jenkins, opts.operator, projects)
+            except paramiko.ssh_exception.SSHException:
+                error('Reconnecting to Gerrit...')
+                client = connect_client(opts)
             if not opts.refresh:
                 break
             time.sleep(opts.refresh)
