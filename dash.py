@@ -177,7 +177,8 @@ def bright_line(line):
 
 
 def red_background_line(line):
-    return colorama.Back.RED + line + colorama.Back.RESET
+    return (colorama.Back.RED + colorama.Style.BRIGHT + line +
+            colorama.Style.RESET_ALL + colorama.Back.RESET)
 
 
 def calculate_time_in_queue(change):
@@ -219,6 +220,12 @@ def do_dashboard(client, user, filters, reset, show_jenkins, operator,
         msg = re.sub('<[^>]+>', '', zuul_data['message'])
         print red_background_line('Zuul: %s' % msg)
     change_ids_not_found = get_change_ids(changes).keys()
+    try:
+        trigger_queue = zuul_data['trigger_event_queue']['length']
+        if trigger_queue > 5:
+            print red_background_line("Backlog: %i items" % trigger_queue)
+    except:
+        pass
     for queue, zuul_info in results.items():
         if zuul_info:
             print bright_line("Queue: %s (%i/%i)" % (queue, len(zuul_info),
