@@ -99,13 +99,21 @@ def get_change_id(change):
 def get_job_status(change):
     total = 0
     complete = 0
-    okay = True
+    okay = None
+    okay_statuses = ['SUCCESS']
+    maybe_statuses = ['SKIPPED', 'ABORTED']
     for job in change['jobs']:
         total += 1
         if job['result']:
             complete += 1
-            if (job['result'] != u'SUCCESS' and job['voting']):
-                okay = False
+            if job['voting']:
+                if job['result'] in okay_statuses:
+                    okay = 'yes' if okay is None else okay
+                elif job['result'] in maybe_statuses:
+                    okay = 'maybe' if okay != 'no' else okay
+                else:
+                    okay = 'no'
+                print 'Voting job had %s' % job['result']
     return (complete * 100) / total, okay
 
 
@@ -166,6 +174,10 @@ def find_changes_in_zuul(zuul_data, changes):
 
 def green_line(line):
     return colorama.Fore.GREEN + line + colorama.Fore.RESET
+
+
+def yellow_line(line):
+    return colorama.Fore.YELLOW + line + colorama.Fore.RESET
 
 
 def red_line(line):
@@ -245,8 +257,10 @@ def do_dashboard(client, user, filters, reset, show_jenkins, operator,
                 else:
                     line = '     ' + line
                 if change['owner']['username'] == user:
-                    if okay:
+                    if okay in ['yes', None]:
                         print green_line(line)
+                    elif okay == 'maybe':
+                        print yellow_line(line)
                     else:
                         print red_line(line)
                 else:
@@ -303,6 +317,29 @@ def connect_client(opts):
         client = None
     return client
 
+
+def connect_client(opts):
+    connect_args = {
+        'port': 29418,
+        'username': opts.user,
+        'key_filename': opts.ssh_key
+    }
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.load_system_host_keys()
+    try:
+        client.connect('review.openstack.org', **connect_args)
+    except paramiko.PasswordRequiredException:
+        print "SSH key is encrypted. Asking for the passphrase..."
+        ssh_key_pw = getpass.getpass()
+        connect_args['password'] = ssh_key_pw
+        try:
+            client.connect('review.openstack.org', **connect_args)
+        except:
+            client = None
+    except:
+        client = None
+    return client
 
 def main():
     usage = 'Usage: %s [options] [<username or review ID>]'

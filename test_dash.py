@@ -27,7 +27,7 @@ class TestDash(unittest.TestCase):
 
         complete, okay = dash.get_job_status(change)
         self.assertEqual(66, complete)
-        self.assertTrue(okay)
+        self.assertEqual('yes', okay)
 
     def test_get_job_status_notokay(self):
 
@@ -39,7 +39,19 @@ class TestDash(unittest.TestCase):
 
         complete, okay = dash.get_job_status(change)
         self.assertEqual(66, complete)
-        self.assertFalse(okay)
+        self.assertEqual('no', okay)
+
+    def test_get_job_status_maybe(self):
+
+        change = {'jobs':
+                      [{'result': 'SUCCESS', 'voting': True},
+                       {'result': None, 'voting': True},
+                       {'result': 'ABORTED', 'voting': True},
+                       ]}
+
+        complete, okay = dash.get_job_status(change)
+        self.assertEqual(66, complete)
+        self.assertEqual('maybe', okay)
 
     def test_get_change_id(self):
         self.assertEqual(1234, dash.get_change_id({'id': '1234,10'}))
