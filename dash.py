@@ -101,7 +101,7 @@ def get_job_status(change):
     complete = 0
     okay = None
     okay_statuses = ['SUCCESS']
-    maybe_statuses = ['SKIPPED', 'ABORTED']
+    maybe_statuses = ['SKIPPED', 'ABORTED', 'CANCELED']
     for job in change['jobs']:
         total += 1
         if job['result']:
