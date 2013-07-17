@@ -210,6 +210,21 @@ def error(msg):
     print red_background_line(msg)
 
 
+def do_trigger_line(zuul_data):
+    try:
+        trigger_queue = zuul_data['trigger_event_queue']['length']
+        msg = "Backlog: %i items" % trigger_queue
+        if trigger_queue > 20:
+            print red_background_line(msg)
+        elif trigger_queue > 10:
+            print yellow_line(msg)
+        elif trigger_queue > 5:
+            print msg
+    except:
+        pass
+
+
+
 def do_dashboard(client, user, filters, reset, show_jenkins, operator,
                  projects):
     try:
@@ -231,13 +246,8 @@ def do_dashboard(client, user, filters, reset, show_jenkins, operator,
     if u'message' in zuul_data:
         msg = re.sub('<[^>]+>', '', zuul_data['message'])
         print red_background_line('Zuul: %s' % msg)
+    do_trigger_line(zuul_data)
     change_ids_not_found = get_change_ids(changes).keys()
-    try:
-        trigger_queue = zuul_data['trigger_event_queue']['length']
-        if trigger_queue > 5:
-            print red_background_line("Backlog: %i items" % trigger_queue)
-    except:
-        pass
     for queue, zuul_info in results.items():
         if zuul_info:
             print bright_line("Queue: %s (%i/%i)" % (queue, len(zuul_info),
