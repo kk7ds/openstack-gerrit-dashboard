@@ -25,7 +25,6 @@ import sys
 import time
 import urllib
 import getpass
-from oslo.config import cfg
 
 
 def make_filter(key, value, operator):
@@ -342,7 +341,8 @@ def connect_client(opts):
         client = None
     return client
 
-def parse_args(argv):
+
+def osloconfig_parse(argv, cfg):
     config_files = []
     path = os.environ.get('DASH_CONFIG_FILE', 'dash.conf')
     if os.path.exists(path):
@@ -407,6 +407,51 @@ def parse_args(argv):
         conf.register_cli_opt(opt)
     conf(argv[1:], project='dash', default_config_files=config_files)
     return conf
+
+
+def opt_parse(argv):
+    usage = 'Usage: %s [options] [<username or review ID>]'
+    optparser = optparse.OptionParser(usage=usage)
+    optparser.add_option('-u', '--user', help='Gerrit username',
+                         default=os.environ.get('USER'))
+    optparser.add_option('-r', '--refresh', help='Refresh in seconds',
+                         default=0, type=int)
+    optparser.add_option('-k', '--ssh_key', default=None,
+                         help='SSH key to use for gerrit')
+    optparser.add_option('-o', '--owner', default=None,
+                         help='Show patches from this owner')
+    optparser.add_option('-c', '--change', default=None,
+                         help='Show a particular patch set')
+    optparser.add_option('-p', '--projects', default='',
+                         help='Comma separated list of projects')
+    optparser.add_option('-t', '--topic', default=None,
+                         help='Show a particular topic only')
+    optparser.add_option('-w', '--watched', default=False,
+                         action='store_true',
+                         help='Show changes for all watched projects')
+    optparser.add_option('-s', '--starred', default=False,
+                         action='store_true',
+                         help='Show changes for all starred commits')
+    optparser.add_option('-O', '--operator', default='AND',
+                         help='Join query elements with this operator')
+    optparser.add_option('-j', '--jenkins', default=False,
+                         action='store_true',
+                         help='Show jenkins scores for patches already '
+                              'verified')
+    optparser.add_option('-Z', '--dump-zuul', help='Dump zuul data',
+                         action='store_true', default=False)
+    optparser.add_option('-G', '--dump-gerrit', help='Dump gerrit data',
+                         action='store_true', default=False)
+    opts, args = optparser.parse_args()
+    return opts
+
+
+def parse_args(argv):
+    try:
+        from oslo.config import cfg
+        return osloconfig_parse(argv, cfg)
+    except ImportError:
+        return optparse_parse(argv)
 
 
 def main():
