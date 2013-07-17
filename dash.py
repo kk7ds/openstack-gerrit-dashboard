@@ -451,7 +451,7 @@ def parse_args(argv):
         from oslo.config import cfg
         return osloconfig_parse(argv, cfg)
     except ImportError:
-        return optparse_parse(argv)
+        return opt_parse(argv)
 
 
 def main():
