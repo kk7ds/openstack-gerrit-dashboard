@@ -327,66 +327,33 @@ def connect_client(opts):
         client = None
     return client
 
-def osloconfig_parse(argv, cfg):
+def osloconfig_parse(argv, opts, cfg):
     config_files = []
     path = os.environ.get('DASH_CONFIG_FILE', 'dash.conf')
     if os.path.exists(path):
         config_files.append(path)
 
-    default_opts = [
-        cfg.StrOpt('user',
-                   short='-u',
-                   default=os.environ.get('USER'),
-                   help='Gerrit username'),
-        cfg.IntOpt('refresh',
-                   short='-r',
-                   default=0,
-                   help='Refresh in seconds'),
-        cfg.StrOpt('ssh-key',
-                   short='-k',
-                   default=None,
-                   help='SSH key to use for gerrit'),
-        cfg.StrOpt('owner',
-                   short='-o',
-                   default=None,
-                   help='Show patches from this owner'),
-        cfg.StrOpt('change',
-                    short='-c',
-                    default=None,
-                    help='Show a particular patch set'),
-        cfg.StrOpt('projects',
-                    short='-p', 
-                    default='',
-                    help='Comma separated list of projects'),
-        cfg.StrOpt('topic',
-                    short='-t',
-                    default=None,
-                    help='Show a particular topic only'),
-        cfg.BoolOpt('watched',
-                    short='-w',
-                    default=False,
-                    help='Show changes for all watched projects'),
-        cfg.BoolOpt('starred',
-                    short='-s',
-                    default=False,
-                    help='Show changes for all starred commits'),
-        cfg.StrOpt('operator',
-                   short='-O',
-                   default='AND',
-                   help='Join query elements with this operator'),
-        cfg.BoolOpt('jenkins',
-                   short='-j',
-                   default=False,
-                   help='Show jenkins scores for patches already verified'),
-        cfg.BoolOpt('dump-zuul',
-                    short='-Z',
-                    default=False,
-                    help='Dump zuul data'),
-        cfg.BoolOpt('dump-gerrit',
-                    short='-G',
-                    default=False,
-                    help='Dump gerrit data')
-    ]
+    default_opts = []
+    for opt in opts.option_list:
+        if opt.action in ('store_true', 'store_false'):
+            o = cfg.BoolOpt(opt.dest,
+                            short=opt._short_opts[0][1],
+                            default=opt.default,
+                            help=opt.help)
+        elif opt.type == 'int':
+            o = cfg.IntOpt(opt.dest,
+                           short=opt._short_opts[0][1],
+                           default=opt.default,
+                           help=opt.help)
+        elif opt.dest:
+            o = cfg.StrOpt(opt.dest,
+                           short=opt._short_opts[0][1],
+                           default=opt.default,
+                           help=opt.help)
+        else:
+            continue
+        default_opts.append(o)
+
     conf = cfg.ConfigOpts()
     for opt in default_opts:
         conf.register_cli_opt(opt)
@@ -428,15 +395,16 @@ def opt_parse(argv):
     optparser.add_option('-G', '--dump-gerrit', help='Dump gerrit data',
                          action='store_true', default=False)
     opts, args = optparser.parse_args()
-    return opts
+    return optparser, opts
 
 
 def parse_args(argv):
+    optparser, opts = opt_parse(argv)
     try:
         from oslo.config import cfg
-        return osloconfig_parse(argv, cfg)
+        return osloconfig_parse(argv, optparser, cfg)
     except ImportError:
-        return opt_parse(argv)
+        return opts
 
 
 def main():
