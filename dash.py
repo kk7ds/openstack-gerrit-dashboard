@@ -327,30 +327,6 @@ def connect_client(opts):
         client = None
     return client
 
-
-def connect_client(opts):
-    connect_args = {
-        'port': 29418,
-        'username': opts.user,
-        'key_filename': opts.ssh_key
-    }
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.load_system_host_keys()
-    try:
-        client.connect('review.openstack.org', **connect_args)
-    except paramiko.PasswordRequiredException:
-        print "SSH key is encrypted. Asking for the passphrase..."
-        ssh_key_pw = getpass.getpass()
-        connect_args['password'] = ssh_key_pw
-        try:
-            client.connect('review.openstack.org', **connect_args)
-        except:
-            client = None
-    except:
-        client = None
-    return client
-
 def main():
     usage = 'Usage: %s [options] [<username or review ID>]'
     optparser = optparse.OptionParser(usage=usage)
