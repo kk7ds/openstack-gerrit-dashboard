@@ -446,7 +446,9 @@ def main():
                              opts.jenkins, opts.operator, projects)
             except paramiko.ssh_exception.SSHException:
                 error('Reconnecting to Gerrit...')
-                client = connect_client(opts)
+                _client = connect_client(opts)
+                if _client is not None:
+                    client = client
             if not opts.refresh:
                 break
             time.sleep(opts.refresh)

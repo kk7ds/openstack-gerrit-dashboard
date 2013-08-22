@@ -1,6 +1,7 @@
 import unittest
 
 import mox
+import paramiko
 
 import dash
 
@@ -107,3 +108,51 @@ class TestDash(unittest.TestCase):
         self._test_gerrit_query(
             '((is:starred AND is:watched)) AND status:open',
             {'is': ['starred', 'watched']}, 'AND', [])
+
+    def test_gerrit_reconnect(self):
+        class FakeOpts(object):
+            projects = None
+            owner = None
+            change = None
+            topic = None
+            watched = None
+            starred = None
+            user = None
+            refresh = 0
+            jenkins = False
+            operator = 'OR'
+            dump_zuul = False
+            dump_gerrit = False
+
+        fake_opts = FakeOpts()
+        self.mox.StubOutWithMock(dash, 'parse_args')
+        self.mox.StubOutWithMock(dash, 'connect_client')
+        self.mox.StubOutWithMock(dash, 'do_dashboard')
+        self.mox.StubOutWithMock(dash, 'error')
+        dash.error(mox.IgnoreArg()).MultipleTimes()
+        dash.parse_args(mox.IgnoreArg()).AndReturn(fake_opts)
+        dash.connect_client(fake_opts).AndReturn('client')
+
+        # Client is broken, do_dashboard throws an error
+        dash.do_dashboard(
+            'client', None, mox.IgnoreArg(), False, False, 'OR', []
+            ).AndRaise(paramiko.ssh_exception.SSHException())
+
+        # We try to reconnect and fail
+        dash.connect_client(fake_opts).AndReturn(None)
+
+        # Make sure do_dashboard is called with the old client
+        dash.do_dashboard(
+            'client', None, mox.IgnoreArg(), False, False, 'OR', []
+            ).AndRaise(paramiko.ssh_exception.SSHException())
+
+        # We try to reconnect and succeed this time
+        dash.connect_client(fake_opts).AndReturn('new-client')
+
+        # Make sure do_dashboard is called with the new client
+        dash.do_dashboard('new-client', None, mox.IgnoreArg(),
+                          False, False, 'OR', [])
+
+        self.mox.ReplayAll()
+
+        dash.main()
