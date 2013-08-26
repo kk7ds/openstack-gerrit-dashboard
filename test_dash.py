@@ -118,7 +118,7 @@ class TestDash(unittest.TestCase):
             watched = None
             starred = None
             user = None
-            refresh = 0
+            refresh = 1
             jenkins = False
             operator = 'OR'
             dump_zuul = False
@@ -135,7 +135,7 @@ class TestDash(unittest.TestCase):
 
         # Client is broken, do_dashboard throws an error
         dash.do_dashboard(
-            'client', None, mox.IgnoreArg(), False, False, 'OR', []
+            'client', None, mox.IgnoreArg(), True, False, 'OR', []
             ).AndRaise(paramiko.ssh_exception.SSHException())
 
         # We try to reconnect and fail
@@ -143,7 +143,7 @@ class TestDash(unittest.TestCase):
 
         # Make sure do_dashboard is called with the old client
         dash.do_dashboard(
-            'client', None, mox.IgnoreArg(), False, False, 'OR', []
+            'client', None, mox.IgnoreArg(), True, False, 'OR', []
             ).AndRaise(paramiko.ssh_exception.SSHException())
 
         # We try to reconnect and succeed this time
@@ -151,8 +151,19 @@ class TestDash(unittest.TestCase):
 
         # Make sure do_dashboard is called with the new client
         dash.do_dashboard('new-client', None, mox.IgnoreArg(),
-                          False, False, 'OR', [])
+                          True, False, 'OR', [])
+        
+        # It will be called one more time because of refresh
+        dash.do_dashboard('new-client', None, mox.IgnoreArg(),
+                          True, False, 'OR', []).AndRaise(
+                              KeyboardInterrupt)
 
         self.mox.ReplayAll()
 
         dash.main()
+        
+        self.mox.VerifyAll()
+        
+
+if __name__ == '__main__':
+    unittest.main()
