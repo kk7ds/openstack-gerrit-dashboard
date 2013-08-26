@@ -193,9 +193,7 @@ def red_background_line(line):
             colorama.Style.RESET_ALL + colorama.Back.RESET)
 
 
-def calculate_time_in_queue(change):
-    enqueue_timestamp = int(change['enqueue_time']) / 1000
-    secs = time.time() - enqueue_timestamp
+def format_time(secs):
     if secs < 60:
         return "%is" % secs
     elif secs < 3600:
@@ -203,6 +201,23 @@ def calculate_time_in_queue(change):
     else:
         return "%ih%im" % ((secs / 3600),
                            (secs % 3600) / 60)
+
+
+def calculate_time_in_queue(change):
+    enqueue_timestamp = int(change['enqueue_time']) / 1000
+    secs = time.time() - enqueue_timestamp
+    return format_time(secs)
+    
+    
+def calculate_time_remaining(change):
+    enqueue_timestamp = int(change['enqueue_time']) / 1000
+    secs = time.time() - enqueue_timestamp
+    percent_done = change['status'][0]
+    if percent_done != 0:
+        total_time = int(float(secs) * 100. / float(percent_done))
+        return format_time(total_time - secs)
+    else:
+        return '?m'
 
 
 def error(msg):
@@ -257,11 +272,13 @@ def do_dashboard(client, user, filters, reset, show_jenkins, operator,
                 if change_id in change_ids_not_found:
                     change_ids_not_found.remove(change_id)
                 time_in_q = calculate_time_in_queue(change)
+                time_remaining = calculate_time_remaining(change)
                 status, okay = change['status']
-                line = '(%-8s) %s (%s/%02i%%)' % (change['id'],
+                line = '(%-8s) %s (%s/%02i%%/rem:%s)' % (change['id'],
                                                   change['subject'],
                                                   time_in_q,
-                                                  status)
+                                                  status,
+                                                  time_remaining)
                 if queue == 'gate':
                     line = ('%3i: ' % change['pos']) + line
                 else:
