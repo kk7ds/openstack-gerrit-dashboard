@@ -448,7 +448,7 @@ def main():
                 error('Reconnecting to Gerrit...')
                 _client = connect_client(opts)
                 if _client is not None:
-                    client = client
+                    client = _client
             if not opts.refresh:
                 break
             time.sleep(opts.refresh)
