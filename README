@@ -1,25 +1,30 @@
 This is a simple and very hacky thing to show a dashboard of commits
 that are in the various check/gate queues. Usage is:
 
-Usage: %s [options] [<username or review ID>]
+Usage: dash.py [options] [<username or review ID>]
 
 Options:
   -h, --help            show this help message and exit
   -u USER, --user=USER  Gerrit username
+  -P PASSWD, --passwd=PASSWD
+                        Gerrit password
   -r REFRESH, --refresh=REFRESH
                         Refresh in seconds
-  -k SSH_KEY, --ssh_key=SSH_KEY
-                        SSH key to use for gerrit
   -o OWNER, --owner=OWNER
                         Show patches from this owner
   -c CHANGE, --change=CHANGE
                         Show a particular patch set
-  -p PROJECT, --project=PROJECT
-                        Show a particular project only
+  -p PROJECTS, --projects=PROJECTS
+                        Comma separated list of projects
   -t TOPIC, --topic=TOPIC
                         Show a particular topic only
+  -w, --watched         Show changes for all watched projects
+  -s, --starred         Show changes for all starred commits
+  -O OPERATOR, --operator=OPERATOR
+                        Join query elements with this operator
   -j, --jenkins         Show jenkins scores for patches already verified
   -Z, --dump-zuul       Dump zuul data
+  -G, --dump-gerrit     Dump gerrit data
 
 
 Examples:
