@@ -14,16 +14,17 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import base64
 import colorama
 import json
 import optparse
 import os
-import paramiko
 import pprint
 import re
 import sys
 import time
 import urllib
+import urllib2
 import getpass
 
 
@@ -35,7 +36,7 @@ def make_filter(key, value, operator):
         return '%s:%s' % (key, value)
 
 
-def get_pending_changes(client, filters, operator, projects):
+def get_pending_changes(auth_creds, filters, operator, projects):
     query_parts = []
     if filters:
         query_items = [make_filter(x, y, operator) for x, y in filters.items()]
@@ -48,23 +49,31 @@ def get_pending_changes(client, filters, operator, projects):
         query_parts.append(project_query)
 
     query = '(%s)' % (' %s ' % operator).join(query_parts)
-    if query.strip:
+    if query.strip():
         query += ' AND '
-    query += 'status:open --current-patch-set'
+    query += 'status:open'
 
-    cmd = 'gerrit query %s --format JSON' % query
-    stdin, stdout, stderr = client.exec_command(cmd)
-    changes = []
-    for line in stdout:
-        change = json.loads(line)
-        if 'number' not in change:
-            continue
-        changes.append(change)
-    return changes
+    # Quick hack to make this work for http (needs major cleanup)
+    url = 'http://review.openstack.org/changes/?q=' + query
+    url += '&o=DETAILED_ACCOUNTS'
+    url = url.replace(' ', '%20')
+    req = urllib2.Request(url)
+    auth = base64.encodestring('%s:%s' % auth_creds)
+    req.add_header('Authorization', 'Basic %s' % auth.strip())
+    gerrit = urllib2.urlopen(req)
+    result = gerrit.read()
+    result = result[5:]
+    changes = json.loads(result)
+    _changes = []
+    for change in changes:
+        if '_number' in change:
+            change['number'] = change['_number']
+        _changes.append(change)
+    return _changes
 
 
-def dump_gerrit(client, filters, operator, projects):
-    pprint.pprint(get_pending_changes(client, filters, operator, projects))
+def dump_gerrit(auth_creds, filters, operator, projects):
+    pprint.pprint(get_pending_changes(auth_creds, filters, operator, projects))
 
 
 def get_zuul_status():
@@ -113,7 +122,6 @@ def get_job_status(change):
                     okay = 'maybe' if okay != 'no' else okay
                 else:
                     okay = 'no'
-                print 'Voting job had %s' % job['result']
     return (complete * 100) / total, okay
 
 
@@ -140,7 +148,7 @@ def get_jenkins_info(changes):
         change_id = '%s,%s' % (change['number'], patch_set['number'])
         for approval in patch_set.get('approvals', []):
             if (approval['type'] != 'VRIF' or
-                    approval['by']['username'] != 'jenkins'):
+                    approval['by'].get('username') != 'jenkins'):
                 continue
             score = approval['value']
             break
@@ -240,12 +248,10 @@ def do_trigger_line(zuul_data):
 
 
 
-def do_dashboard(client, user, filters, reset, show_jenkins, operator,
+def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
                  projects):
     try:
-        changes = get_pending_changes(client, filters, operator, projects)
-    except paramiko.ssh_exception.SSHException:
-        raise
+        changes = get_pending_changes(auth_creds, filters, operator, projects)
     except Exception as e:
         error('Failed to get changes from Gerrit: %s' % e)
         return
@@ -283,7 +289,7 @@ def do_dashboard(client, user, filters, reset, show_jenkins, operator,
                     line = ('%3i: ' % change['pos']) + line
                 else:
                     line = '     ' + line
-                if change['owner']['username'] == user:
+                if change['owner'].get('username') == user:
                     if okay in ['yes', None]:
                         print green_line(line)
                     elif okay == 'maybe':
@@ -320,29 +326,6 @@ def reset_terminal(filters, operator, projects):
     target = delim.join('%s:%s' % (x, y) for x, y in filters.items())
     print "Dashboard for %s %s - %s " % (target, projects, time.asctime())
 
-
-def connect_client(opts):
-    connect_args = {
-        'port': 29418,
-        'username': opts.user,
-        'key_filename': opts.ssh_key
-    }
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.load_system_host_keys()
-    try:
-        client.connect('review.openstack.org', **connect_args)
-    except paramiko.PasswordRequiredException:
-        print "SSH key is encrypted. Asking for the passphrase..."
-        ssh_key_pw = getpass.getpass()
-        connect_args['password'] = ssh_key_pw
-        try:
-            client.connect('review.openstack.org', **connect_args)
-        except:
-            client = None
-    except:
-        client = None
-    return client
 
 def osloconfig_parse(argv, opts, cfg):
     config_files = []
@@ -383,10 +366,10 @@ def opt_parse(argv):
     optparser = optparse.OptionParser(usage=usage)
     optparser.add_option('-u', '--user', help='Gerrit username',
                          default=os.environ.get('USER'))
+    optparser.add_option('-P', '--passwd', help='Gerrit password',
+                         default=os.environ.get('PASS'))
     optparser.add_option('-r', '--refresh', help='Refresh in seconds',
                          default=0, type=int)
-    optparser.add_option('-k', '--ssh_key', default=None,
-                         help='SSH key to use for gerrit')
     optparser.add_option('-o', '--owner', default=None,
                          help='Show patches from this owner')
     optparser.add_option('-c', '--change', default=None,
@@ -430,7 +413,7 @@ def main():
         dump_zuul()
         return
 
-    client = connect_client(opts)
+    auth_creds = (opts.user, opts.passwd)
 
     filters = {}
     for filter_key in ['owner', 'change', 'topic']:
@@ -453,19 +436,13 @@ def main():
         filters = {'owner': opts.user}
 
     if opts.dump_gerrit:
-        dump_gerrit(client, filters, opts.operator, projects)
+        dump_gerrit(auth_creds, filters, opts.operator, projects)
         return
 
     while True:
         try:
-            try:
-                do_dashboard(client, opts.user, filters, opts.refresh != 0,
-                             opts.jenkins, opts.operator, projects)
-            except paramiko.ssh_exception.SSHException:
-                error('Reconnecting to Gerrit...')
-                _client = connect_client(opts)
-                if _client is not None:
-                    client = _client
+            do_dashboard(auth_creds, opts.user, filters, opts.refresh != 0,
+                         opts.jenkins, opts.operator, projects)
             if not opts.refresh:
                 break
             time.sleep(opts.refresh)
