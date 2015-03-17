@@ -122,6 +122,9 @@ def get_job_status(change):
                     okay = 'maybe' if okay != 'no' else okay
                 else:
                     okay = 'no'
+    if total == 0:
+        # Don't divide by 0 :)
+        return 0, okay
     return (complete * 100) / total, okay
 
 
