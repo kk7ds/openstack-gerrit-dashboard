@@ -28,6 +28,9 @@ import urllib2
 import getpass
 
 
+IGNORE_QUEUES = ['merge-check', 'silent']
+
+
 def make_filter(key, value, operator):
     if isinstance(value, list):
         return (' %s ' % operator).join(['%s:%s' % (key, _value)
@@ -60,8 +63,9 @@ def get_pending_changes(auth_creds, filters, operator, projects):
     req = urllib2.Request(url)
     auth = base64.encodestring('%s:%s' % auth_creds)
     req.add_header('Authorization', 'Basic %s' % auth.strip())
-    gerrit = urllib2.urlopen(req)
+    gerrit = urllib2.urlopen(req, timeout=60)
     result = gerrit.read()
+    gerrit.close()
     result = result[5:]
     changes = json.loads(result)
     _changes = []
@@ -77,7 +81,8 @@ def dump_gerrit(auth_creds, filters, operator, projects):
 
 
 def get_zuul_status():
-    zuul = urllib.urlopen('http://zuul.openstack.org/status.json')
+    req = urllib2.Request('http://zuul.openstack.org/status.json')
+    zuul = urllib2.urlopen(req, timeout=60)
     return json.loads(zuul.read())
 
 
@@ -111,6 +116,7 @@ def get_job_status(change):
     okay = None
     okay_statuses = ['SUCCESS']
     maybe_statuses = ['SKIPPED', 'ABORTED', 'CANCELED']
+    status = ''
     for job in change['jobs']:
         total += 1
         if job['result']:
@@ -118,14 +124,21 @@ def get_job_status(change):
             if job['voting']:
                 if job['result'] in okay_statuses:
                     okay = 'yes' if okay is None else okay
+                    status += '+'
                 elif job['result'] in maybe_statuses:
                     okay = 'maybe' if okay != 'no' else okay
+                    status += '?'
                 else:
                     okay = 'no'
-    if total == 0:
-        # Don't divide by 0 :)
-        return 0, okay
-    return (complete * 100) / total, okay
+                    status += '-'
+        else:
+            if job['start_time']:
+                status += '~'
+            else:
+                status += '_'
+    if not total:
+        return 0, '?', 'no'
+    return (complete * 100) / total, status, okay
 
 
 def process_changes(head, change_ids, queue_pos, queue_results):
@@ -172,6 +185,8 @@ def find_changes_in_zuul(zuul_data, changes):
 
     for queue in zuul_data['pipelines']:
         queue_name = queue['name']
+        if queue_name in IGNORE_QUEUES:
+            continue
         queue_pos = 0
         results[queue_name] = []
         for subq in queue['change_queues']:
@@ -282,8 +297,8 @@ def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
                     change_ids_not_found.remove(change_id)
                 time_in_q = calculate_time_in_queue(change)
                 time_remaining = calculate_time_remaining(change)
-                status, okay = change['status']
-                line = '(%-8s) %s (%s/%02i%%/rem:%s)' % (change['id'],
+                percent, status, okay = change['status']
+                line = '(%-8s) %s (%s/%s/rem:%s)' % (change['id'],
                                                   change['subject'],
                                                   time_in_q,
                                                   status,
@@ -297,9 +312,11 @@ def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
                         print green_line(line)
                     elif okay == 'maybe':
                         print yellow_line(line)
+                    elif status == '?':
+                        continue
                     else:
                         print red_line(line)
-                else:
+                elif status != '?':
                     print line
     # Show info about changes not in zuul.
     if show_jenkins and change_ids_not_found:
