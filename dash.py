@@ -57,7 +57,7 @@ def get_pending_changes(auth_creds, filters, operator, projects):
     query += 'status:open'
 
     # Quick hack to make this work for http (needs major cleanup)
-    url = 'http://review.openstack.org/changes/?q=' + query
+    url = 'https://review.openstack.org/changes/?q=' + urllib.quote(query)
     url += '&o=DETAILED_ACCOUNTS'
     url = url.replace(' ', '%20')
     req = urllib2.Request(url)
