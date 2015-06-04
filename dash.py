@@ -65,10 +65,21 @@ def get_pending_changes(auth_creds, filters, operator, projects):
     req = urllib2.Request(url)
     auth = base64.encodestring('%s:%s' % auth_creds)
     req.add_header('Authorization', 'Basic %s' % auth.strip())
+    req.add_header('Accept-encoding', 'gzip')
     gerrit = urllib2.urlopen(req, timeout=60)
-    result = gerrit.read()
+    data = ""
+    while True:
+        chunk = gerrit.read()
+        if not chunk:
+            break
+        data += chunk
+
+    if gerrit.info().get('Content-Encoding') == 'gzip':
+        buf = cStringIO.StringIO(data)
+        f = gzip.GzipFile(fileobj=buf)
+        data = f.read()
     gerrit.close()
-    result = result[5:]
+    result = data[5:]
     changes = json.loads(result)
     _changes = []
     for change in changes:
