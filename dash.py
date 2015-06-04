@@ -26,6 +26,8 @@ import time
 import urllib
 import urllib2
 import getpass
+import cStringIO
+import gzip
 
 
 IGNORE_QUEUES = ['merge-check', 'silent']
@@ -82,8 +84,21 @@ def dump_gerrit(auth_creds, filters, operator, projects):
 
 def get_zuul_status():
     req = urllib2.Request('http://zuul.openstack.org/status.json')
+    req.add_header('Accept-encoding', 'gzip')
     zuul = urllib2.urlopen(req, timeout=60)
-    return json.loads(zuul.read())
+    data = ""
+    while True:
+        chunk = zuul.read()
+        if not chunk:
+            break
+        data += chunk
+
+    if zuul.info().get('Content-Encoding') == 'gzip':
+        buf = cStringIO.StringIO(data)
+        f = gzip.GzipFile(fileobj=buf)
+        data = f.read()
+
+    return json.loads(data)
 
 
 def dump_zuul():
