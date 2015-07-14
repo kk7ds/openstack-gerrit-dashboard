@@ -31,6 +31,7 @@ import gzip
 
 
 IGNORE_QUEUES = ['merge-check', 'silent']
+CACHE = {}
 
 
 def make_filter(key, value, operator):
@@ -93,7 +94,7 @@ def dump_gerrit(auth_creds, filters, operator, projects):
     pprint.pprint(get_pending_changes(auth_creds, filters, operator, projects))
 
 
-def get_zuul_status():
+def _get_zuul_status():
     req = urllib2.Request('http://zuul.openstack.org/status.json')
     req.add_header('Accept-encoding', 'gzip')
     zuul = urllib2.urlopen(req, timeout=60)
@@ -110,6 +111,19 @@ def get_zuul_status():
         data = f.read()
 
     return json.loads(data)
+
+
+def get_zuul_status():
+    try:
+        CACHE['zuul'] = _get_zuul_status()
+        CACHE['zuul']['_retry'] = 0
+    except Exception as e:
+        try:
+            CACHE['zuul']['_retry'] += 1
+        except:
+            pass
+        pass
+    return CACHE.get('zuul')
 
 
 def dump_zuul():
@@ -290,6 +304,12 @@ def do_trigger_line(zuul_data):
     except:
         pass
 
+    try:
+        retry = zuul_data['_retry']
+        if retry > 0:
+            print yellow_line('%i failed attempts' % retry)
+    except:
+        pass
 
 
 def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
