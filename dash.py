@@ -140,6 +140,14 @@ def get_change_ids(changes):
     return change_ids
 
 
+def is_dependent_queue(head):
+    return (len(head) > 0 and
+            'jobs' in head[-1] and
+            len(head[-1]['jobs']) > 0 and
+            'pipeline' in head[-1]['jobs'][0] and
+            head[-1]['jobs'][0]['pipeline'] == 'gate')
+
+
 def get_change_id(change):
     try:
         change_id = int(change['id'].split(',')[0])
@@ -182,6 +190,12 @@ def get_job_status(change):
 
 
 def process_changes(head, change_ids, queue_pos, queue_results):
+    # with Depends-On we can have heads in independent pipelines, but
+    # we should ignore everything except the last change in them
+    # unless this is really a dependent pipeline.
+    if len(head) > 0 and not is_dependent_queue(head):
+        head = [head[-1]]
+
     for change in head:
         queue_pos += 1
         change_id = get_change_id(change)
@@ -273,8 +287,8 @@ def calculate_time_in_queue(change):
     enqueue_timestamp = int(change['enqueue_time']) / 1000
     secs = time.time() - enqueue_timestamp
     return format_time(secs)
-    
-    
+
+
 def calculate_time_remaining(change):
     enqueue_timestamp = int(change['enqueue_time']) / 1000
     secs = time.time() - enqueue_timestamp
