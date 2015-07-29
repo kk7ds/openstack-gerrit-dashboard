@@ -21,7 +21,8 @@ Options:
   -w, --watched         Show changes for all watched projects
   -s, --starred         Show changes for all starred commits
   -O OPERATOR, --operator=OPERATOR
-                        Join query elements with this operator
+                        Join query elements with this operator (OR or AND).
+                        The default is AND.
   -j, --jenkins         Show jenkins scores for patches already verified
   -Z, --dump-zuul       Dump zuul data
   -G, --dump-gerrit     Dump gerrit data

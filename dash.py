@@ -465,7 +465,8 @@ def opt_parse(argv):
                          action='store_true',
                          help='Show changes for all starred commits')
     optparser.add_option('-O', '--operator', default='AND',
-                         help='Join query elements with this operator')
+                         help='Join query elements with this operator '
+                              '(OR or AND). The default is AND.')
     optparser.add_option('-j', '--jenkins', default=False,
                          action='store_true',
                          help='Show jenkins scores for patches already '
