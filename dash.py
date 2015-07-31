@@ -141,11 +141,15 @@ def get_change_ids(changes):
 
 
 def is_dependent_queue(head):
-    return (len(head) > 0 and
-            'jobs' in head[-1] and
-            len(head[-1]['jobs']) > 0 and
-            'pipeline' in head[-1]['jobs'][0] and
-            head[-1]['jobs'][0]['pipeline'] == 'gate')
+    def find_pipeline(change):
+        if ('jobs' in change and
+            len(change['jobs']) > 0 and
+            'pipeline' in change['jobs'][0]):
+                return change['jobs'][0]['pipeline']
+        return None
+
+    pipelines = set(map(find_pipeline, head))
+    return 'gate' in pipelines
 
 
 def get_change_id(change):
