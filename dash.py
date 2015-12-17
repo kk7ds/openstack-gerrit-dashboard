@@ -28,10 +28,14 @@ import urllib2
 import getpass
 import cStringIO
 import gzip
+import requests
+import requests.auth
 
 
 IGNORE_QUEUES = ['merge-check', 'silent']
 CACHE = {}
+
+session = requests.Session()
 
 
 def make_filter(key, value, operator):
@@ -59,27 +63,15 @@ def get_pending_changes(auth_creds, filters, operator, projects):
         query += ' AND '
     query += 'status:open'
 
-    # Quick hack to make this work for http (needs major cleanup)
-    url = 'https://review.openstack.org/changes/?q=' + urllib.quote(query)
-    url += '&o=DETAILED_ACCOUNTS'
-    url = url.replace(' ', '%20')
-    req = urllib2.Request(url)
-    auth = base64.encodestring('%s:%s' % auth_creds)
-    req.add_header('Authorization', 'Basic %s' % auth.strip())
-    req.add_header('Accept-encoding', 'gzip')
-    gerrit = urllib2.urlopen(req, timeout=60)
-    data = ""
-    while True:
-        chunk = gerrit.read()
-        if not chunk:
-            break
-        data += chunk
+    auth = requests.auth.HTTPDigestAuth(*auth_creds)
+    result = session.get('https://review.openstack.org/a/changes/',
+                         params={'q': query,
+                                 'o': 'DETAILED_ACCOUNTS',
+                                 'pp': '0'},
+                         auth=auth)
+    result.raise_for_status()
 
-    if gerrit.info().get('Content-Encoding') == 'gzip':
-        buf = cStringIO.StringIO(data)
-        f = gzip.GzipFile(fileobj=buf)
-        data = f.read()
-    gerrit.close()
+    data = ''.join(x for x in result.iter_content(1024))
     result = data[5:]
     changes = json.loads(result)
     _changes = []
