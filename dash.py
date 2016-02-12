@@ -68,7 +68,8 @@ def get_pending_changes(auth_creds, filters, operator, projects):
                          params={'q': query,
                                  'o': 'DETAILED_ACCOUNTS',
                                  'pp': '0'},
-                         auth=auth)
+                         auth=auth,
+                         timeout=30)
     result.raise_for_status()
 
     data = ''.join(x for x in result.iter_content(1024))
