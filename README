@@ -7,7 +7,8 @@ Options:
   -h, --help            show this help message and exit
   -u USER, --user=USER  Gerrit username
   -P PASSWD, --passwd=PASSWD
-                        Gerrit password
+                        Gerrit password. For example, you can get this from
+                        https://review.openstack.org/#/settings/
   -r REFRESH, --refresh=REFRESH
                         Refresh in seconds
   -o OWNER, --owner=OWNER
@@ -54,3 +55,12 @@ Queue: check
    5: (32040,1 ) Moves scheduler.rpcapi.prep_resize call on compute.api to conductor
   13: (30822,6 ) Fix VMwareVCDriver to support multi-datastore
   15: (31952,8 ) xenapi: remove auto_disk_config check during resize
+
+
+Notes:
+
+* It used to be possible to just use your public ssh key for gerrit but with
+  the latest version of dash you have to supply your password for HTTP. So if
+  you are getting a 401 be sure that you are supplying the --user and --passwd
+  options on the command line and that the password matches what's in your
+  gerrit settings at https://review.openstack.org/#/settings/.
