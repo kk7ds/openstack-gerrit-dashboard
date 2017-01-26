@@ -129,6 +129,7 @@ def get_change_ids(changes):
         change_ids[int(thing[u'number'])] = {
             'subject': thing[u'subject'],
             'owner': thing[u'owner'],
+            'starred': thing.get(u'starred'),
         }
     return change_ids
 
@@ -202,6 +203,7 @@ def process_changes(head, change_ids, queue_pos, queue_results):
                  'id': change['id'],
                  'subject': change_ids[change_id]['subject'],
                  'owner': change_ids[change_id]['owner'],
+                 'starred': change_ids[change_id].get('starred'),
                  'enqueue_time': change['enqueue_time'],
                  'status': get_job_status(change),
                  })
@@ -259,6 +261,9 @@ def yellow_line(line):
 
 def red_line(line):
     return colorama.Fore.RED + line + colorama.Fore.RESET
+
+def blue_line(line):
+    return colorama.Fore.LIGHTBLUE_EX + line + colorama.Fore.RESET
 
 
 def bright_line(line):
@@ -373,6 +378,8 @@ def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
                         continue
                     else:
                         print red_line(line)
+                elif change.get('starred'):
+                    print blue_line(line)
                 elif status != '?':
                     print line
     # Show info about changes not in zuul.
