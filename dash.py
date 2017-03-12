@@ -15,7 +15,6 @@
 #    under the License.
 
 import argparse
-import base64
 import colorama
 import json
 import os
@@ -23,9 +22,7 @@ import pprint
 import re
 import sys
 import time
-import urllib
 import urllib2
-import getpass
 import cStringIO
 import gzip
 import requests
@@ -110,7 +107,7 @@ def get_zuul_status():
     try:
         CACHE['zuul'] = _get_zuul_status()
         CACHE['zuul']['_retry'] = 0
-    except Exception as e:
+    except Exception:
         try:
             CACHE['zuul']['_retry'] += 1
         except:
@@ -138,7 +135,7 @@ def is_dependent_queue(head):
     def find_pipeline(change):
         if ('jobs' in change and
             len(change['jobs']) > 0 and
-            'pipeline' in change['jobs'][0]):
+                'pipeline' in change['jobs'][0]):
                 return change['jobs'][0]['pipeline']
         return None
 
@@ -262,6 +259,7 @@ def yellow_line(line):
 def red_line(line):
     return colorama.Fore.RED + line + colorama.Fore.RESET
 
+
 def blue_line(line):
     return colorama.Fore.LIGHTBLUE_EX + line + colorama.Fore.RESET
 
@@ -360,11 +358,12 @@ def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
                 time_in_q = calculate_time_in_queue(change)
                 time_remaining = calculate_time_remaining(change)
                 percent, status, okay = change['status']
-                line = '(%-8s) %s (%s/%s/rem:%s)' % (change['id'],
-                                                  change['subject'],
-                                                  time_in_q,
-                                                  status,
-                                                  time_remaining)
+                line = '(%-8s) %s (%s/%s/rem:%s)' % (
+                    change['id'],
+                    change['subject'],
+                    time_in_q,
+                    status,
+                    time_remaining)
                 if queue == 'gate':
                     line = ('%3i: ' % change['pos']) + line
                 else:
