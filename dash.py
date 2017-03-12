@@ -14,10 +14,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import argparse
 import base64
 import colorama
 import json
-import optparse
 import os
 import pprint
 import re
@@ -411,14 +411,14 @@ def reset_terminal(filters, operator, projects):
     print "Dashboard for %s %s - %s " % (target, projects, time.asctime())
 
 
-def osloconfig_parse(argv, opts, cfg):
+def osloconfig_parse(args, cfg):
     config_files = []
     path = os.environ.get('DASH_CONFIG_FILE', 'dash.conf')
     if os.path.exists(path):
         config_files.append(path)
 
     default_opts = []
-    for opt in opts.option_list:
+    for opt in args:
         if opt.action in ('store_true', 'store_false'):
             o = cfg.BoolOpt(opt.dest,
                             short=opt._short_opts[0][1],
@@ -441,55 +441,55 @@ def osloconfig_parse(argv, opts, cfg):
     conf = cfg.ConfigOpts()
     for opt in default_opts:
         conf.register_cli_opt(opt)
-    conf(argv[1:], project='dash', default_config_files=config_files)
+    conf(args, project='dash', default_config_files=config_files)
     return conf
 
 
 def opt_parse(argv):
     usage = 'Usage: %s [options] [<username or review ID>]'
-    optparser = optparse.OptionParser(usage=usage)
-    optparser.add_option('-u', '--user', help='Gerrit username',
-                         default=os.environ.get('USER'))
-    optparser.add_option('-P', '--passwd', help='Gerrit password',
-                         default=os.environ.get('PASS'))
-    optparser.add_option('-r', '--refresh', help='Refresh in seconds',
-                         default=0, type=int)
-    optparser.add_option('-o', '--owner', default=None,
-                         help='Show patches from this owner')
-    optparser.add_option('-c', '--change', default=None,
-                         help='Show a particular patch set')
-    optparser.add_option('-p', '--projects', default='',
-                         help='Comma separated list of projects')
-    optparser.add_option('-t', '--topic', default=None,
-                         help='Show a particular topic only')
-    optparser.add_option('-w', '--watched', default=False,
-                         action='store_true',
-                         help='Show changes for all watched projects')
-    optparser.add_option('-s', '--starred', default=False,
-                         action='store_true',
-                         help='Show changes for all starred commits')
-    optparser.add_option('-O', '--operator', default='AND',
-                         help='Join query elements with this operator '
-                              '(OR or AND). The default is AND.')
-    optparser.add_option('-j', '--jenkins', default=False,
-                         action='store_true',
-                         help='Show jenkins scores for patches already '
-                              'verified')
-    optparser.add_option('-Z', '--dump-zuul', help='Dump zuul data',
-                         action='store_true', default=False)
-    optparser.add_option('-G', '--dump-gerrit', help='Dump gerrit data',
-                         action='store_true', default=False)
-    opts, args = optparser.parse_args()
-    return optparser, opts
+    argparser = argparse.ArgumentParser(usage=usage)
+    argparser.add_argument('-u', '--user', help='Gerrit username',
+                           default=os.environ.get('USER'))
+    argparser.add_argument('-P', '--passwd', help='Gerrit password',
+                           default=os.environ.get('PASS'))
+    argparser.add_argument('-r', '--refresh', help='Refresh in seconds',
+                           default=0, type=int)
+    argparser.add_argument('-o', '--owner', default=None,
+                           help='Show patches from this owner')
+    argparser.add_argument('-c', '--change', default=None,
+                           help='Show a particular patch set')
+    argparser.add_argument('-p', '--projects', default='',
+                           help='Comma separated list of projects')
+    argparser.add_argument('-t', '--topic', default=None,
+                           help='Show a particular topic only')
+    argparser.add_argument('-w', '--watched', default=False,
+                           action='store_true',
+                           help='Show changes for all watched projects')
+    argparser.add_argument('-s', '--starred', default=False,
+                           action='store_true',
+                           help='Show changes for all starred commits')
+    argparser.add_argument('-O', '--operator', default='AND',
+                           help='Join query elements with this operator '
+                                '(OR or AND). The default is AND.')
+    argparser.add_argument('-j', '--jenkins', default=False,
+                           action='store_true',
+                           help='Show jenkins scores for patches already '
+                                'verified')
+    argparser.add_argument('-Z', '--dump-zuul', help='Dump zuul data',
+                           action='store_true', default=False)
+    argparser.add_argument('-G', '--dump-gerrit', help='Dump gerrit data',
+                           action='store_true', default=False)
+    argparser.add_argument('username_or_review', help='username or review ID')
+    return argparser.parse_args()
 
 
 def parse_args(argv):
-    optparser, opts = opt_parse(argv)
+    args = opt_parse(argv)
     try:
         from oslo.config import cfg
-        return osloconfig_parse(argv, optparser, cfg)
+        return osloconfig_parse(args, cfg)
     except ImportError:
-        return opts
+        return args
 
 
 def main():
