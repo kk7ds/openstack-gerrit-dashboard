@@ -19,6 +19,8 @@ Options:
                         Comma separated list of projects
   -t TOPIC, --topic=TOPIC
                         Show a particular topic only
+  -q QUERY, --query=QUERY
+                        Show changes according to a gerrit query
   -w, --watched         Show changes for all watched projects
   -s, --starred         Show changes for all starred commits
   -O OPERATOR, --operator=OPERATOR

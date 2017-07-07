@@ -43,7 +43,7 @@ def make_filter(key, value, operator):
         return '%s:%s' % (key, value)
 
 
-def get_pending_changes(auth_creds, filters, operator, projects):
+def get_pending_changes(auth_creds, filters, operator, projects, gerrit_query):
     query_parts = []
     if filters:
         query_items = [make_filter(x, y, operator) for x, y in filters.items()]
@@ -54,6 +54,9 @@ def get_pending_changes(auth_creds, filters, operator, projects):
         projects = ['project:%s' % p for p in projects]
         project_query = '(' + ' OR '.join(projects) + ')'
         query_parts.append(project_query)
+
+    if gerrit_query:
+        query_parts.append(gerrit_query)
 
     query = '(%s)' % (' %s ' % operator).join(query_parts)
     if query.strip():
@@ -80,8 +83,8 @@ def get_pending_changes(auth_creds, filters, operator, projects):
     return _changes
 
 
-def dump_gerrit(auth_creds, filters, operator, projects):
-    pprint.pprint(get_pending_changes(auth_creds, filters, operator, projects))
+def dump_gerrit(auth_creds, filters, operator, projects, query):
+    pprint.pprint(get_pending_changes(auth_creds, filters, operator, projects, query))
 
 
 def _get_zuul_status():
@@ -327,9 +330,9 @@ def do_trigger_line(zuul_data):
 
 
 def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
-                 projects):
+                 projects, query):
     try:
-        changes = get_pending_changes(auth_creds, filters, operator, projects)
+        changes = get_pending_changes(auth_creds, filters, operator, projects, query)
     except Exception as e:
         error('Failed to get changes from Gerrit: %s' % e)
         return
@@ -461,6 +464,8 @@ def opt_parse(argv):
                            help='Comma separated list of projects')
     argparser.add_argument('-t', '--topic', default=None,
                            help='Show a particular topic only')
+    argparser.add_argument('-q', '--query', default=None,
+                           help='Use a specific gerrit query')
     argparser.add_argument('-w', '--watched', default=False,
                            action='store_true',
                            help='Show changes for all watched projects')
@@ -516,17 +521,17 @@ def main():
         filters['is'].append('starred')
 
     # Default case
-    if not filters and not projects:
+    if not filters and not projects and not opts.query:
         filters = {'owner': opts.user}
 
     if opts.dump_gerrit:
-        dump_gerrit(auth_creds, filters, opts.operator, projects)
+        dump_gerrit(auth_creds, filters, opts.operator, projects, opts.query)
         return
 
     while True:
         try:
             do_dashboard(auth_creds, opts.user, filters, opts.refresh != 0,
-                         opts.jenkins, opts.operator, projects)
+                         opts.jenkins, opts.operator, projects, opts.query)
             if not opts.refresh:
                 break
             time.sleep(opts.refresh)
