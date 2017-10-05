@@ -25,6 +25,7 @@ import pprint
 import re
 import requests
 import requests.auth
+import ssl
 import sys
 import time
 
@@ -99,9 +100,13 @@ def dump_gerrit(auth_creds, filters, operator, projects, query):
 
 
 def _get_zuul_status():
-    req = urllib2.Request('http://zuul.openstack.org/status.json')
+    req = urllib2.Request('https://zuul.openstack.org/status.json')
     req.add_header('Accept-encoding', 'gzip')
-    zuul = urllib2.urlopen(req, timeout=60)
+    # NOTE(SamYaple): We don't really care about verifying the cert, and the
+    # url tends to be in and out of having a valid cert, esspecially with
+    # zuulv3 landing
+    ctx = ssl._create_unverified_context()
+    zuul = urllib2.urlopen(req, timeout=60, context=ctx)
     data = b''
     while True:
         chunk = zuul.read()
