@@ -14,19 +14,30 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from __future__ import print_function
+
 import argparse
 import colorama
+import gzip
 import json
 import os
 import pprint
 import re
-import sys
-import time
-import urllib2
-import cStringIO
-import gzip
 import requests
 import requests.auth
+import sys
+import time
+
+try:
+    import urllib2
+except ImportError:
+    # python3
+    from urllib import request as urllib2
+try:
+    from cStringIO import StringIO as BytesIO
+except ImportError:
+    # python3
+    from io import BytesIO
 
 
 IGNORE_QUEUES = ['merge-check', 'silent']
@@ -72,7 +83,7 @@ def get_pending_changes(auth_creds, filters, operator, projects, gerrit_query):
                          timeout=30)
     result.raise_for_status()
 
-    data = ''.join(x for x in result.iter_content(1024))
+    data = ''.join(x.decode('utf-8') for x in result.iter_content(1024))
     result = data[5:]
     changes = json.loads(result)
     _changes = []
@@ -91,7 +102,7 @@ def _get_zuul_status():
     req = urllib2.Request('http://zuul.openstack.org/status.json')
     req.add_header('Accept-encoding', 'gzip')
     zuul = urllib2.urlopen(req, timeout=60)
-    data = ""
+    data = b''
     while True:
         chunk = zuul.read()
         if not chunk:
@@ -99,7 +110,7 @@ def _get_zuul_status():
         data += chunk
 
     if zuul.info().get('Content-Encoding') == 'gzip':
-        buf = cStringIO.StringIO(data)
+        buf = BytesIO(data)
         f = gzip.GzipFile(fileobj=buf)
         data = f.read()
 
@@ -305,7 +316,7 @@ def calculate_time_remaining(change):
 
 def error(msg):
     _reset_terminal()
-    print red_background_line(msg)
+    print(red_background_line(msg))
 
 
 def do_trigger_line(zuul_data):
@@ -313,18 +324,18 @@ def do_trigger_line(zuul_data):
         trigger_queue = zuul_data['trigger_event_queue']['length']
         msg = "Backlog: %i items" % trigger_queue
         if trigger_queue > 20:
-            print red_background_line(msg)
+            print(red_background_line(msg))
         elif trigger_queue > 10:
-            print yellow_line(msg)
+            print(yellow_line(msg))
         elif trigger_queue > 5:
-            print msg
+            print(msg)
     except:
         pass
 
     try:
         retry = zuul_data['_retry']
         if retry > 0:
-            print yellow_line('%i failed attempts' % retry)
+            print(yellow_line('%i failed attempts' % retry))
     except:
         pass
 
@@ -347,13 +358,13 @@ def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
         reset_terminal(filters, operator, projects)
     if u'message' in zuul_data:
         msg = re.sub('<[^>]+>', '', zuul_data['message'])
-        print red_background_line('Zuul: %s' % msg)
+        print(red_background_line('Zuul: %s' % msg))
     do_trigger_line(zuul_data)
-    change_ids_not_found = get_change_ids(changes).keys()
+    change_ids_not_found = list(get_change_ids(changes).keys())
     for queue, zuul_info in results.items():
         if zuul_info:
-            print bright_line("Queue: %s (%i/%i)" % (queue, len(zuul_info),
-                                                     queue_stats[queue]))
+            print(bright_line("Queue: %s (%i/%i)" % (queue, len(zuul_info),
+                                                     queue_stats[queue])))
             for change in zuul_info:
                 change_id = get_change_id(change)
                 if change_id in change_ids_not_found:
@@ -373,20 +384,20 @@ def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
                     line = '     ' + line
                 if change['owner'].get('username') == user:
                     if okay in ['yes', None]:
-                        print green_line(line)
+                        print(green_line(line))
                     elif okay == 'maybe':
-                        print yellow_line(line)
+                        print(yellow_line(line))
                     elif status == '?':
                         continue
                     else:
-                        print red_line(line)
+                        print(red_line(line))
                 elif change.get('starred'):
-                    print blue_line(line)
+                    print(blue_line(line))
                 elif status != '?':
-                    print line
+                    print(line)
     # Show info about changes not in zuul.
     if show_jenkins and change_ids_not_found:
-        print "Jenkins scores:"
+        print("Jenkins scores:")
         changes_not_found = [x for x in changes
                              if int(x['number']) in change_ids_not_found]
         jenkins_info = get_jenkins_info(changes_not_found)
@@ -394,13 +405,13 @@ def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
             line = " %2s: (%-8s) %s" % (info['score'], info['id'],
                                         info['subject'])
             if info['owner']['username'] == user:
-                print green_line(line)
+                print(green_line(line))
             else:
-                print line
+                print(line)
 
 
 def _reset_terminal():
-    sys.stderr.write("\x1b[2J\x1b[H")
+    print("\033c", end='')
 
 
 def reset_terminal(filters, operator, projects):
@@ -410,7 +421,7 @@ def reset_terminal(filters, operator, projects):
         delim = ','
     _reset_terminal()
     target = delim.join('%s:%s' % (x, y) for x, y in filters.items())
-    print "Dashboard for %s %s - %s " % (target, projects, time.asctime())
+    print("Dashboard for %s %s - %s " % (target, projects, time.asctime()))
 
 
 def osloconfig_parse(args, cfg):
