@@ -449,8 +449,9 @@ def opt_parse(argv):
                          default=0, type=int)
     optparser.add_option('-o', '--owner', default=None,
                          help='Show patches from this owner')
-    optparser.add_option('-c', '--change', default=None,
-                         help='Show a particular patch set')
+    optparser.add_option('-c', '--change', default=None, action='append',
+                         help='Show a particular patch set. '
+                              'Can be specified multiple times.')
     optparser.add_option('-p', '--projects', default='',
                          help='Comma separated list of projects')
     optparser.add_option('-t', '--topic', default=None,
@@ -517,10 +518,15 @@ def main():
         dump_gerrit(auth_creds, filters, opts.operator, projects)
         return
 
+    # If there are multiple changes, we have to use the OR operator.
+    operator = opts.operator
+    if len(filters.get('change', [])) > 1:
+        operator = 'OR'
+
     while True:
         try:
             do_dashboard(auth_creds, opts.user, filters, opts.refresh != 0,
-                         opts.jenkins, opts.operator, projects)
+                         opts.jenkins, operator, projects)
             if not opts.refresh:
                 break
             time.sleep(opts.refresh)

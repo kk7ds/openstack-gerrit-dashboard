@@ -14,7 +14,8 @@ Options:
   -o OWNER, --owner=OWNER
                         Show patches from this owner
   -c CHANGE, --change=CHANGE
-                        Show a particular patch set
+                        Show a particular patch set.
+                        Can be specified multiple times.
   -p PROJECTS, --projects=PROJECTS
                         Comma separated list of projects
   -t TOPIC, --topic=TOPIC
@@ -55,6 +56,12 @@ Queue: check
    5: (32040,1 ) Moves scheduler.rpcapi.prep_resize call on compute.api to conductor
   13: (30822,6 ) Fix VMwareVCDriver to support multi-datastore
   15: (31952,8 ) xenapi: remove auto_disk_config check during resize
+
+$ ./dash.py -r 60 -c 523958 -c 532290
+Queue: check (2/134)
+     (523958,18) libvirt: QEMU native LUKS decryption for encrypted volumes
+     (532290,8) Add get_traits() method to ComputeDriver
+
 
 
 Notes:
