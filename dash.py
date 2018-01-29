@@ -14,22 +14,31 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import base64
+from __future__ import print_function
+
+import argparse
 import colorama
+import gzip
 import json
-import optparse
 import os
 import pprint
 import re
-import sys
-import time
-import urllib
-import urllib2
-import getpass
-import cStringIO
-import gzip
 import requests
 import requests.auth
+import ssl
+import sys
+import time
+
+try:
+    import urllib2
+except ImportError:
+    # python3
+    from urllib import request as urllib2
+try:
+    from cStringIO import StringIO as BytesIO
+except ImportError:
+    # python3
+    from io import BytesIO
 
 
 IGNORE_QUEUES = ['merge-check', 'silent']
@@ -46,7 +55,7 @@ def make_filter(key, value, operator):
         return '%s:%s' % (key, value)
 
 
-def get_pending_changes(auth_creds, filters, operator, projects):
+def get_pending_changes(auth_creds, filters, operator, projects, gerrit_query):
     query_parts = []
     if filters:
         query_items = [make_filter(x, y, operator) for x, y in filters.items()]
@@ -57,6 +66,9 @@ def get_pending_changes(auth_creds, filters, operator, projects):
         projects = ['project:%s' % p for p in projects]
         project_query = '(' + ' OR '.join(projects) + ')'
         query_parts.append(project_query)
+
+    if gerrit_query:
+        query_parts.append(gerrit_query)
 
     query = '(%s)' % (' %s ' % operator).join(query_parts)
     if query.strip():
@@ -72,7 +84,7 @@ def get_pending_changes(auth_creds, filters, operator, projects):
                          timeout=30)
     result.raise_for_status()
 
-    data = ''.join(x for x in result.iter_content(1024))
+    data = ''.join(x.decode('utf-8') for x in result.iter_content(1024))
     result = data[5:]
     changes = json.loads(result)
     _changes = []
@@ -83,15 +95,19 @@ def get_pending_changes(auth_creds, filters, operator, projects):
     return _changes
 
 
-def dump_gerrit(auth_creds, filters, operator, projects):
-    pprint.pprint(get_pending_changes(auth_creds, filters, operator, projects))
+def dump_gerrit(auth_creds, filters, operator, projects, query):
+    pprint.pprint(get_pending_changes(auth_creds, filters, operator, projects, query))
 
 
 def _get_zuul_status():
-    req = urllib2.Request('http://zuul.openstack.org/status.json')
+    req = urllib2.Request('https://zuul.openstack.org/status.json')
     req.add_header('Accept-encoding', 'gzip')
-    zuul = urllib2.urlopen(req, timeout=60)
-    data = ""
+    # NOTE(SamYaple): We don't really care about verifying the cert, and the
+    # url tends to be in and out of having a valid cert, esspecially with
+    # zuulv3 landing
+    ctx = ssl._create_unverified_context()
+    zuul = urllib2.urlopen(req, timeout=60, context=ctx)
+    data = b''
     while True:
         chunk = zuul.read()
         if not chunk:
@@ -99,7 +115,7 @@ def _get_zuul_status():
         data += chunk
 
     if zuul.info().get('Content-Encoding') == 'gzip':
-        buf = cStringIO.StringIO(data)
+        buf = BytesIO(data)
         f = gzip.GzipFile(fileobj=buf)
         data = f.read()
 
@@ -110,7 +126,7 @@ def get_zuul_status():
     try:
         CACHE['zuul'] = _get_zuul_status()
         CACHE['zuul']['_retry'] = 0
-    except Exception as e:
+    except Exception:
         try:
             CACHE['zuul']['_retry'] += 1
         except:
@@ -129,6 +145,7 @@ def get_change_ids(changes):
         change_ids[int(thing[u'number'])] = {
             'subject': thing[u'subject'],
             'owner': thing[u'owner'],
+            'starred': thing.get(u'starred'),
         }
     return change_ids
 
@@ -137,7 +154,7 @@ def is_dependent_queue(head):
     def find_pipeline(change):
         if ('jobs' in change and
             len(change['jobs']) > 0 and
-            'pipeline' in change['jobs'][0]):
+                'pipeline' in change['jobs'][0]):
                 return change['jobs'][0]['pipeline']
         return None
 
@@ -202,6 +219,7 @@ def process_changes(head, change_ids, queue_pos, queue_results):
                  'id': change['id'],
                  'subject': change_ids[change_id]['subject'],
                  'owner': change_ids[change_id]['owner'],
+                 'starred': change_ids[change_id].get('starred'),
                  'enqueue_time': change['enqueue_time'],
                  'status': get_job_status(change),
                  })
@@ -261,6 +279,10 @@ def red_line(line):
     return colorama.Fore.RED + line + colorama.Fore.RESET
 
 
+def blue_line(line):
+    return colorama.Fore.LIGHTBLUE_EX + line + colorama.Fore.RESET
+
+
 def bright_line(line):
     return colorama.Style.BRIGHT + line + colorama.Style.RESET_ALL
 
@@ -299,7 +321,7 @@ def calculate_time_remaining(change):
 
 def error(msg):
     _reset_terminal()
-    print red_background_line(msg)
+    print(red_background_line(msg))
 
 
 def do_trigger_line(zuul_data):
@@ -307,26 +329,26 @@ def do_trigger_line(zuul_data):
         trigger_queue = zuul_data['trigger_event_queue']['length']
         msg = "Backlog: %i items" % trigger_queue
         if trigger_queue > 20:
-            print red_background_line(msg)
+            print(red_background_line(msg))
         elif trigger_queue > 10:
-            print yellow_line(msg)
+            print(yellow_line(msg))
         elif trigger_queue > 5:
-            print msg
+            print(msg)
     except:
         pass
 
     try:
         retry = zuul_data['_retry']
         if retry > 0:
-            print yellow_line('%i failed attempts' % retry)
+            print(yellow_line('%i failed attempts' % retry))
     except:
         pass
 
 
 def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
-                 projects):
+                 projects, query):
     try:
-        changes = get_pending_changes(auth_creds, filters, operator, projects)
+        changes = get_pending_changes(auth_creds, filters, operator, projects, query)
     except Exception as e:
         error('Failed to get changes from Gerrit: %s' % e)
         return
@@ -341,13 +363,13 @@ def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
         reset_terminal(filters, operator, projects)
     if u'message' in zuul_data:
         msg = re.sub('<[^>]+>', '', zuul_data['message'])
-        print red_background_line('Zuul: %s' % msg)
+        print(red_background_line('Zuul: %s' % msg))
     do_trigger_line(zuul_data)
-    change_ids_not_found = get_change_ids(changes).keys()
+    change_ids_not_found = list(get_change_ids(changes).keys())
     for queue, zuul_info in results.items():
         if zuul_info:
-            print bright_line("Queue: %s (%i/%i)" % (queue, len(zuul_info),
-                                                     queue_stats[queue]))
+            print(bright_line("Queue: %s (%i/%i)" % (queue, len(zuul_info),
+                                                     queue_stats[queue])))
             for change in zuul_info:
                 change_id = get_change_id(change)
                 if change_id in change_ids_not_found:
@@ -355,29 +377,32 @@ def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
                 time_in_q = calculate_time_in_queue(change)
                 time_remaining = calculate_time_remaining(change)
                 percent, status, okay = change['status']
-                line = '(%-8s) %s (%s/%s/rem:%s)' % (change['id'],
-                                                  change['subject'],
-                                                  time_in_q,
-                                                  status,
-                                                  time_remaining)
+                line = '(%-8s) %s (%s/%s/rem:%s)' % (
+                    change['id'],
+                    change['subject'],
+                    time_in_q,
+                    status,
+                    time_remaining)
                 if queue == 'gate':
                     line = ('%3i: ' % change['pos']) + line
                 else:
                     line = '     ' + line
                 if change['owner'].get('username') == user:
                     if okay in ['yes', None]:
-                        print green_line(line)
+                        print(green_line(line))
                     elif okay == 'maybe':
-                        print yellow_line(line)
+                        print(yellow_line(line))
                     elif status == '?':
                         continue
                     else:
-                        print red_line(line)
+                        print(red_line(line))
+                elif change.get('starred'):
+                    print(blue_line(line))
                 elif status != '?':
-                    print line
+                    print(line)
     # Show info about changes not in zuul.
     if show_jenkins and change_ids_not_found:
-        print "Jenkins scores:"
+        print("Jenkins scores:")
         changes_not_found = [x for x in changes
                              if int(x['number']) in change_ids_not_found]
         jenkins_info = get_jenkins_info(changes_not_found)
@@ -385,13 +410,13 @@ def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
             line = " %2s: (%-8s) %s" % (info['score'], info['id'],
                                         info['subject'])
             if info['owner']['username'] == user:
-                print green_line(line)
+                print(green_line(line))
             else:
-                print line
+                print(line)
 
 
 def _reset_terminal():
-    sys.stderr.write("\x1b[2J\x1b[H")
+    print("\033c", end='')
 
 
 def reset_terminal(filters, operator, projects):
@@ -401,17 +426,17 @@ def reset_terminal(filters, operator, projects):
         delim = ','
     _reset_terminal()
     target = delim.join('%s:%s' % (x, y) for x, y in filters.items())
-    print "Dashboard for %s %s - %s " % (target, projects, time.asctime())
+    print("Dashboard for %s %s - %s " % (target, projects, time.asctime()))
 
 
-def osloconfig_parse(argv, opts, cfg):
+def osloconfig_parse(args, cfg):
     config_files = []
     path = os.environ.get('DASH_CONFIG_FILE', 'dash.conf')
     if os.path.exists(path):
         config_files.append(path)
 
     default_opts = []
-    for opt in opts.option_list:
+    for opt in args:
         if opt.action in ('store_true', 'store_false'):
             o = cfg.BoolOpt(opt.dest,
                             short=opt._short_opts[0][1],
@@ -434,56 +459,58 @@ def osloconfig_parse(argv, opts, cfg):
     conf = cfg.ConfigOpts()
     for opt in default_opts:
         conf.register_cli_opt(opt)
-    conf(argv[1:], project='dash', default_config_files=config_files)
+    conf(args, project='dash', default_config_files=config_files)
     return conf
 
 
 def opt_parse(argv):
     usage = 'Usage: %s [options] [<username or review ID>]'
-    optparser = optparse.OptionParser(usage=usage)
-    optparser.add_option('-u', '--user', help='Gerrit username',
-                         default=os.environ.get('USER'))
-    optparser.add_option('-P', '--passwd', help='Gerrit password',
-                         default=os.environ.get('PASS'))
-    optparser.add_option('-r', '--refresh', help='Refresh in seconds',
-                         default=0, type=int)
-    optparser.add_option('-o', '--owner', default=None,
-                         help='Show patches from this owner')
-    optparser.add_option('-c', '--change', default=None, action='append',
-                         help='Show a particular patch set. '
-                              'Can be specified multiple times.')
-    optparser.add_option('-p', '--projects', default='',
-                         help='Comma separated list of projects')
-    optparser.add_option('-t', '--topic', default=None,
-                         help='Show a particular topic only')
-    optparser.add_option('-w', '--watched', default=False,
-                         action='store_true',
-                         help='Show changes for all watched projects')
-    optparser.add_option('-s', '--starred', default=False,
-                         action='store_true',
-                         help='Show changes for all starred commits')
-    optparser.add_option('-O', '--operator', default='AND',
-                         help='Join query elements with this operator '
-                              '(OR or AND). The default is AND.')
-    optparser.add_option('-j', '--jenkins', default=False,
-                         action='store_true',
-                         help='Show jenkins scores for patches already '
-                              'verified')
-    optparser.add_option('-Z', '--dump-zuul', help='Dump zuul data',
-                         action='store_true', default=False)
-    optparser.add_option('-G', '--dump-gerrit', help='Dump gerrit data',
-                         action='store_true', default=False)
-    opts, args = optparser.parse_args()
-    return optparser, opts
+    argparser = argparse.ArgumentParser(usage=usage)
+    argparser.add_argument('-u', '--user', help='Gerrit username',
+                           default=os.environ.get('USER'))
+    argparser.add_argument('-P', '--passwd', help='Gerrit password',
+                           default=os.environ.get('PASS'))
+    argparser.add_argument('-r', '--refresh', help='Refresh in seconds',
+                           default=0, type=int)
+    argparser.add_argument('-o', '--owner', default=None,
+                           help='Show patches from this owner')
+    argparser.add_argument('-c', '--change', default=None, action='append',
+                           help='Show a particular patch set. '
+                                'Can be specified multiple times.')
+    argparser.add_argument('-p', '--projects', default='',
+                           help='Comma separated list of projects')
+    argparser.add_argument('-t', '--topic', default=None,
+                           help='Show a particular topic only')
+    argparser.add_argument('-q', '--query', default=None,
+                           help='Use a specific gerrit query')
+    argparser.add_argument('-w', '--watched', default=False,
+                           action='store_true',
+                           help='Show changes for all watched projects')
+    argparser.add_argument('-s', '--starred', default=False,
+                           action='store_true',
+                           help='Show changes for all starred commits')
+    argparser.add_argument('-O', '--operator', default='AND',
+                           help='Join query elements with this operator '
+                                '(OR or AND). The default is AND.')
+    argparser.add_argument('-j', '--jenkins', default=False,
+                           action='store_true',
+                           help='Show jenkins scores for patches already '
+                                'verified')
+    argparser.add_argument('-Z', '--dump-zuul', help='Dump zuul data',
+                           action='store_true', default=False)
+    argparser.add_argument('-G', '--dump-gerrit', help='Dump gerrit data',
+                           action='store_true', default=False)
+    argparser.add_argument('username_or_review', help='username or review ID')
+    return argparser.parse_args()
 
 
 def parse_args(argv):
-    optparser, opts = opt_parse(argv)
+    args = opt_parse(argv)
     try:
         from oslo.config import cfg
-        return osloconfig_parse(argv, optparser, cfg)
+        return osloconfig_parse(args, cfg)
     except ImportError:
-        return opts
+        return args
 
 
 def main():
@@ -511,11 +538,11 @@ def main():
         filters['is'].append('starred')
 
     # Default case
-    if not filters and not projects:
+    if not filters and not projects and not opts.query:
         filters = {'owner': opts.user}
 
     if opts.dump_gerrit:
-        dump_gerrit(auth_creds, filters, opts.operator, projects)
+        dump_gerrit(auth_creds, filters, opts.operator, projects, opts.query)
         return
 
     # If there are multiple changes, we have to use the OR operator.
@@ -526,7 +553,7 @@ def main():
     while True:
         try:
             do_dashboard(auth_creds, opts.user, filters, opts.refresh != 0,
-                         opts.jenkins, operator, projects)
+                         opts.jenkins, operator, projects, opts.query)
             if not opts.refresh:
                 break
             time.sleep(opts.refresh)
