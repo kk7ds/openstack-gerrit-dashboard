@@ -393,7 +393,9 @@ def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
                     elif okay == 'maybe':
                         print(yellow_line(line))
                     elif status == '?':
-                        continue
+                        # status == ? means the patch is queued but
+                        # no executor is available
+                        print(line)
                     else:
                         print(red_line(line))
                 elif change.get('starred'):
