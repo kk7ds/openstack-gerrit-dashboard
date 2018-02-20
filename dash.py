@@ -100,7 +100,7 @@ def dump_gerrit(auth_creds, filters, operator, projects, query):
 
 
 def _get_zuul_status():
-    req = urllib2.Request('https://zuul.openstack.org/status.json')
+    req = urllib2.Request('https://zuul.openstack.org/status')
     req.add_header('Accept-encoding', 'gzip')
     # NOTE(SamYaple): We don't really care about verifying the cert, and the
     # url tends to be in and out of having a valid cert, esspecially with
