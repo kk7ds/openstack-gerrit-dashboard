@@ -75,8 +75,8 @@ def get_pending_changes(auth_creds, filters, operator, projects, gerrit_query):
         query += ' AND '
     query += 'status:open'
 
-    auth = requests.auth.HTTPDigestAuth(*auth_creds)
-    result = session.get('https://review.openstack.org/a/changes/',
+    auth = requests.auth.HTTPBasicAuth(*auth_creds)
+    result = session.get('https://review.opendev.org/a/changes/',
                          params={'q': query,
                                  'o': 'DETAILED_ACCOUNTS',
                                  'pp': '0'},
