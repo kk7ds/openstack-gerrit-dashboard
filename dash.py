@@ -84,7 +84,7 @@ def get_pending_changes(auth_creds, filters, operator, projects, gerrit_query):
                          timeout=30)
     result.raise_for_status()
 
-    data = ''.join(x.decode('utf-8') for x in result.iter_content(1024))
+    data = result.content
     result = data[5:]
     changes = json.loads(result)
     _changes = []
