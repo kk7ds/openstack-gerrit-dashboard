@@ -246,7 +246,7 @@ def get_jenkins_info(changes):
     return jenkins_info
 
 
-def find_changes_in_zuul(zuul_data, changes):
+def find_changes_in_zuul(zuul_data, changes, ignore_queues):
     change_ids = get_change_ids(changes)
 
     results = {}
@@ -254,7 +254,7 @@ def find_changes_in_zuul(zuul_data, changes):
 
     for queue in zuul_data['pipelines']:
         queue_name = queue['name']
-        if queue_name in IGNORE_QUEUES:
+        if queue_name in IGNORE_QUEUES + ignore_queues:
             continue
         queue_pos = 0
         results[queue_name] = []
@@ -346,7 +346,7 @@ def do_trigger_line(zuul_data):
 
 
 def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
-                 projects, query):
+                 projects, query, ignore_queues):
     try:
         changes = get_pending_changes(auth_creds, filters, operator, projects, query)
     except Exception as e:
@@ -354,7 +354,7 @@ def do_dashboard(auth_creds, user, filters, reset, show_jenkins, operator,
         return
     try:
         zuul_data = get_zuul_status()
-        results, queue_stats = find_changes_in_zuul(zuul_data, changes)
+        results, queue_stats = find_changes_in_zuul(zuul_data, changes, ignore_queues)
     except Exception as e:
         error('Failed to get data from Zuul: %s' % e)
         return
@@ -502,6 +502,8 @@ def opt_parse(argv):
                            action='store_true', default=False)
     argparser.add_argument('-G', '--dump-gerrit', help='Dump gerrit data',
                            action='store_true', default=False)
+    argparser.add_argument('-Q', '--ignore-queue', help='Ignore this queue',
+                           action='append', default=[])
     argparser.add_argument('username_or_review', help='username or review ID')
     return argparser.parse_args()
 
@@ -555,7 +557,8 @@ def main():
     while True:
         try:
             do_dashboard(auth_creds, opts.user, filters, opts.refresh != 0,
-                         opts.jenkins, operator, projects, opts.query)
+                         opts.jenkins, operator, projects, opts.query,
+                         opts.ignore_queue)
             if not opts.refresh:
                 break
             time.sleep(opts.refresh)
