@@ -74,7 +74,7 @@ class FingerProtocol(asyncio.Protocol):
                       chunkpos, self._startpos, self._chars)
         sys.stdout.write(datastr)
 
-    def connection_lost(self, exc: Exception | None) -> None:
+    def connection_lost(self, exc):
         if self._end_future:
             LOG.debug('Connection lost unexpectedly')
             self._end_future.set_result(False)
