@@ -94,7 +94,8 @@ async def main():
     args = parser.parse_args()
     if args.build.startswith('http'):
         url = urllib.parse.urlparse(args.build)
-        build = url.path.split('/')[2]
+        path = url.path.split('/')
+        build = path[path.index('stream') + 1]
         host = url.hostname
     else:
         build = args.build
