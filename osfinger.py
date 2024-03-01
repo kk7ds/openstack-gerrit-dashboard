@@ -11,6 +11,7 @@
 import argparse
 import asyncio
 import logging
+import subprocess
 import sys
 import unittest
 from unittest import mock
@@ -86,11 +87,18 @@ class FingerProtocol(asyncio.Protocol):
 
 
 async def main():
+    try:
+        lnav = subprocess.check_output('which lnav', shell=True).strip()
+    except Exception:
+        lnav = None
     parser = argparse.ArgumentParser()
     parser.add_argument('build', metavar='BUILD',
                         help='Build URL or UUID')
     parser.add_argument('--debug', action='store_true',
                         help='Enable verbose debug logging')
+    parser.add_argument('--lnav', default=lnav,
+                        help=('Pipe to this lnav binary (set to empty '
+                              'to disable)'))
     args = parser.parse_args()
     if args.build.startswith('http'):
         url = urllib.parse.urlparse(args.build)
@@ -106,6 +114,12 @@ async def main():
     loop = asyncio.get_running_loop()
     startpos = 0
 
+    if args.lnav:
+        p = subprocess.Popen([args.lnav], stdin=subprocess.PIPE, text=True,
+            bufsize=0)
+        sys.stdout.close()
+        sys.stdout = p.stdin
+
     # Keep reconnecting until we get an obvious end-of-stream
     while True:
         end = loop.create_future()
@@ -120,6 +134,10 @@ async def main():
         finally:
             conn.close()
             startpos = proto.position
+
+    if args.lnav:
+        p.stdin.close()
+        p.wait()
 
 
 class TestCase(unittest.TestCase):
