@@ -56,7 +56,7 @@ class FingerProtocol(asyncio.Protocol):
             # reconnecting. Set the condition to True (finished) and make sure
             # we don't overwrite it in our connection_lost() handler.
             LOG.info('Build not found or ended')
-            self._end_future.set_result(True)
+            self._end_future.set_result(None)
             self._end_future = None
             self.transport.close()
             return
@@ -78,7 +78,7 @@ class FingerProtocol(asyncio.Protocol):
     def connection_lost(self, exc):
         if self._end_future:
             LOG.debug('Connection lost unexpectedly')
-            self._end_future.set_result(False)
+            self._end_future.set_result(self.position)
 
     @property
     def position(self):
@@ -86,7 +86,7 @@ class FingerProtocol(asyncio.Protocol):
         return self._chars
 
 
-async def main():
+def main():
     try:
         lnav = subprocess.check_output('which lnav', shell=True).strip()
     except Exception:
@@ -111,7 +111,7 @@ async def main():
 
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
-    loop = asyncio.get_running_loop()
+    loop = asyncio.new_event_loop()
     startpos = 0
 
     if args.lnav:
@@ -124,16 +124,17 @@ async def main():
     while True:
         end = loop.create_future()
         LOG.debug('Connecting to %s...', host)
-        conn, proto = await loop.create_connection(
+        conn = loop.create_connection(
             lambda: FingerProtocol(build, end, startpos),
             host, 79)
+        loop.create_task(conn)
         try:
-            if await end:
-                LOG.debug('Stream ended - no reconnect needed')
-                break
-        finally:
-            conn.close()
-            startpos = proto.position
+            startpos = loop.run_until_complete(end)
+        except KeyboardInterrupt:
+            break
+        if startpos is None:
+            # None means end of stream, don't restart
+            break
 
     if args.lnav:
         p.stdin.close()
@@ -175,4 +176,4 @@ class TestCase(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()
