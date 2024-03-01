@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S python3 -u
 
 # osfinger - a tool to watch Zuul build consoles live from the terminal
 #
